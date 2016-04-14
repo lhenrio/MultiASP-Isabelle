@@ -1,0 +1,41 @@
+lemma SF_fold_to_Union_what_F2[rule_format]: "\<forall>LS . ((distinct locationlist)\<longrightarrow>(\<exists> F .
+ (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) locationlist (LS) 
+      = LS\<union> \<Union>((\<lambda> n . SF (locationlist!n) \<sigma> (L\<union>{l}\<union>F n) T) `{n'. n'<length locationlist}) \<and> 
+(F = (\<lambda> n . (if (n< length locationlist) then (LS\<union> (\<Union>k\<in>{n'. n'<n}. (SF (locationlist!k) \<sigma> (L\<union>{l}\<union>F k) T))) else {} ))))))"
+apply (induct_tac locationlist)
+apply auto
+apply (drule_tac x= "(LS \<union> SF a \<sigma> (insert l (L \<union> LS)) T)" in spec,clarsimp)
+apply (rule_tac x="\<lambda> x. case x of 0\<Rightarrow> LS | Suc n \<Rightarrow> F n" in exI)
+apply (intro conjI allI impI)
+apply (subgoal_tac "(\<Union>n\<in>{n'. n' < Suc (length list)}. SF ((a # list) ! n) \<sigma> (insert l (L \<union> (case n of 0 \<Rightarrow> LS | Suc x \<Rightarrow> F x))) T) = 
+            ?g")
+prefer 2
+apply (rule Union_list_unfold_one)
+apply (clarsimp simp: Set.Un_assoc)
+apply (subgoal_tac " \<forall> x. (\<lambda>x. case x of 0 \<Rightarrow> LS | Suc n \<Rightarrow> F n) x=
+       (\<lambda>n. if n < Suc (length list) then LS \<union> (\<Union>k\<in>{n'. n' < n}. SF ((a # list) ! k) \<sigma> (L \<union> {l} \<union> (case k of 0 \<Rightarrow> LS | Suc n \<Rightarrow> F n)) T)
+             else {}) x")
+apply blast
+apply clarsimp
+apply rule
+defer
+apply clarsimp
+apply (case_tac x)
+apply force
+apply clarsimp
+apply (rotate_tac 3, erule ssubst,simp)
+apply (erule rev_mp)+
+apply (induct_tac x)
+apply (intro impI)
+apply (simp(no_asm_use))
+apply (intro impI)
+apply (simp(no_asm))
+apply (erule ssubst)
+back back
+apply (simp(no_asm_use))
+apply (subgoal_tac "( \<Union>x\<in>{n'. n' < Suc n}. SF ((a # list) ! x) \<sigma> (insert l (L \<union> (case x of 0 \<Rightarrow> LS | Suc a \<Rightarrow> F a))) T)= ?g")
+prefer 2
+apply (rule Union_list_unfold_one_generalised)
+apply (simp(no_asm_use))
+apply force
+done
