@@ -117,6 +117,8 @@ record Interface =
 
 datatype Program = Prog "Interface list" "Class list" "(ItfName * VarName) list" "Statement list"
 
+
+(*        --- runtime notions --- *)
 type_synonym EContext = " Location * (VarName\<rightharpoonup>Value) * (Statement list)" 
                           (*execution context = location of this, local variables, and statements *)
 type_synonym Request = "FutName * MethodName * (Value list)"

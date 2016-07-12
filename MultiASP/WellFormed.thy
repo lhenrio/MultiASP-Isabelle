@@ -1993,7 +1993,7 @@ apply (drule_tac m=Activities and y="AO l_\<alpha> \<sigma> (tasks(Q \<mapsto> (
 apply (rule WF_Statement_reduction_newact,simp,simp,simp,simp)
 apply simp
 apply (intro allI conjI)
-
+(*
 ADD LEMMA ON DEEP COPY AND WF
 apply blast
 apply simp
