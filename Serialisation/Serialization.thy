@@ -8,6 +8,11 @@
                   this could be improved
 *)
 theory Serialization imports StoreDefinition Main AuxiliaryFunctions begin
+section{*generic lemmas*}
+(*lemma map_restrict_id: "\<sigma> x = None \<Longrightarrow>(\<sigma>|` L) x = None"
+apply (unfold restrict_map_def)
+apply auto
+  *)       
 axiomatization where 
 finite_map: "finite (dom (\<sigma>::Store))"
 and
@@ -23,7 +28,7 @@ apply (drule finite_obj)
 apply (auto simp: ran_and_dom)
 done
 
- definition Referenced_locations_Value:: "Value \<Rightarrow> Location set"
+definition Referenced_locations_Value:: "Value \<Rightarrow> Location set"
 where  "Referenced_locations_Value v \<equiv> (case v of ObjRef l \<Rightarrow>{l} | _ \<Rightarrow> {})"
 
 definition Referenced_locations_Location:: "Store \<Rightarrow>Location \<Rightarrow> Location set"
@@ -48,8 +53,7 @@ done
 
 
 lemma Referenced_locations_LocationI_Obj[intro]:
-"\<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-            a x = Some (ObjRef l') \<Longrightarrow> l'\<in> Referenced_locations_Location \<sigma> l"
+"\<sigma> l = Some (Obj (a, b)) \<Longrightarrow> a x = Some (ObjRef l') \<Longrightarrow> l'\<in> Referenced_locations_Location \<sigma> l"
 apply (auto simp: Referenced_locations_Location_def Referenced_locations_Value_def)
 apply (rule_tac x="ObjRef l'" in bexI)
  apply auto
@@ -74,10 +78,11 @@ done
 
 subsection {* serialization and location renaming *}
 
-inductive serialize :: "Value \<Rightarrow> Store \<Rightarrow> Store \<Rightarrow> bool"
+coinductive serialize :: "Value \<Rightarrow> Store \<Rightarrow> Store \<Rightarrow> bool"
 (*serialize v \<sigma> \<sigma>' is true if all the references pointed recursively by v are in sigma' 
 (v refers originally to location in sigma and sigma'should be a subset of sigma) 
-NB: one should expect that the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
+NB: one should expect that the serialization of value v is a subset of \<sigma>' (using store \<sigma>)
+but in practice there is no rule for the non-accessible part of the store*)
   where
     " \<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ran(fst(obj)). \<exists>\<sigma>''. (serialize v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
      \<Longrightarrow> (serialize (ObjRef l) \<sigma> \<sigma>')" |
@@ -86,10 +91,14 @@ NB: one should expect that the serialization of value v is a subset of \<sigma>'
 
      "serialize (null) \<sigma> \<sigma>' " 
 
-lemma serialize_composable_inductive_proof:     "serialize v \<sigma> \<sigma>' \<Longrightarrow> (\<forall> v \<sigma> \<sigma>'. serialize v \<sigma> \<sigma>' \<longrightarrow> Q v \<sigma> \<sigma>') \<Longrightarrow>
+(*lemma serialize_composable_inductive_proof:     
+"serialize v \<sigma> \<sigma>' \<Longrightarrow> (\<forall> v \<sigma> \<sigma>'. serialize v \<sigma> \<sigma>' \<longrightarrow> Q v \<sigma> \<sigma>') \<Longrightarrow>
     (\<And>\<sigma>' l \<sigma> obj.
-        \<sigma>' l = \<sigma> l \<and> \<sigma> l = Some (Obj obj) \<and> (\<forall>v\<in>ran (fst obj). \<exists>\<sigma>''. (serialize v \<sigma> \<sigma>'' \<and> P v \<sigma> \<sigma>''\<and> Q v \<sigma> \<sigma>'') \<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>') \<Longrightarrow> P (ObjRef l) \<sigma> \<sigma>') \<Longrightarrow>
-    (\<And>\<sigma>' l \<sigma> v. \<sigma>' l = \<sigma> l \<and> \<sigma> l = Some (StoredVal v) \<and> serialize v \<sigma> \<sigma>' \<and> P v \<sigma> \<sigma>'\<and> Q v \<sigma> \<sigma>' \<Longrightarrow> P (ObjRef l) \<sigma> \<sigma>') \<Longrightarrow>
+        \<sigma>' l = \<sigma> l \<and> \<sigma> l = Some (Obj obj) \<and> 
+          (\<forall>v\<in>ran (fst obj). \<exists>\<sigma>''. (serialize v \<sigma> \<sigma>'' \<and> P v \<sigma> \<sigma>''\<and> Q v \<sigma> \<sigma>'') \<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>') 
+              \<Longrightarrow> P (ObjRef l) \<sigma> \<sigma>') \<Longrightarrow>
+    (\<And>\<sigma>' l \<sigma> v. \<sigma>' l = \<sigma> l \<and> \<sigma> l = Some (StoredVal v) \<and> serialize v \<sigma> \<sigma>' \<and> P v \<sigma> \<sigma>'\<and> Q v \<sigma> \<sigma>' 
+              \<Longrightarrow> P (ObjRef l) \<sigma> \<sigma>') \<Longrightarrow>
     (\<And>\<sigma> \<sigma>'. P null \<sigma> \<sigma>'\<and> Q null \<sigma> \<sigma>') \<Longrightarrow> P  v \<sigma> \<sigma>'"
 apply (erule serialize.induct,auto)
  apply (subgoal_tac " (\<forall>v\<in>ran a. \<exists>\<sigma>''. serialize v \<sigma> \<sigma>'' \<and> P v \<sigma> \<sigma>'' \<and> Q v \<sigma> \<sigma>'' \<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>' )")
@@ -98,33 +107,83 @@ apply (erule serialize.induct,auto)
 apply (subgoal_tac " serialize v \<sigma> \<sigma>' \<and> P v \<sigma> \<sigma>' \<and> Q v \<sigma> \<sigma>'")
  apply auto
 done
+*)
 
 
-lemma serialize_substore: "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow>\<sigma>'\<subseteq>\<^sub>m  \<sigma>''\<longrightarrow> Well_Formed_Store \<sigma>'' \<longrightarrow> serialize (ObjRef l) \<sigma> \<sigma>''"
-apply (erule serialize.induct)
-(*3*)
-  apply auto
-(* 3 obj case *)
-  apply (rule serialize.intros,auto)
+
+section{* a weaker serialize (for non-WF stores)*}
+(* serialize_weak l \<sigma> \<sigma>' does not constraint \<sigma>' if l points to none 
+it will be useful to define more easily properties on the serialisation, especially to reason by recurrence *)
+coinductive serialize_weak :: "Value \<Rightarrow> Store \<Rightarrow> Store \<Rightarrow> bool"
+  where
+    " \<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ran(fst(obj)). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+     \<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')" |
+
+    " \<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (StoredVal v) \<and>  (serialize_weak v \<sigma> \<sigma>')\<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')" |
+
+     "serialize_weak (null) \<sigma> \<sigma>' " |
+
+(*New : *)
+    " \<sigma>(l) =None \<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')" 
+
+section{*serialize lemmas*}
+
+lemma serialize_substore[rule_format]: " serialize v \<sigma> \<sigma>' \<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>''\<Longrightarrow>  serialize v \<sigma> \<sigma>''"
+apply (erule serialize.coinduct)
+apply clarsimp
+apply (erule serialize.cases)
+apply auto
+(*4*)
    apply (force simp: map_le_def)
+  apply (clarsimp simp: map_le_def)
   apply (drule_tac x=v in bspec)
-   apply assumption
-  apply clarsimp
-  apply (rule_tac x=\<sigma>''' in exI)
- apply (force simp: map_le_def)
-(* 2 storedval*)
- apply (rule serialize.intros(2))
- apply (force simp: map_le_def)
-(*1 null *)
-apply (rule serialize.intros(3))
+   apply force
+  apply force
+(*2*)
+ apply (rotate_tac -1, erule contrapos_pp,clarsimp)
+  apply (drule_tac x=v in bspec)
+  apply force
+ apply clarsimp
+ apply (rule_tac x=\<sigma>'' in exI)
+ apply clarsimp
+ apply (erule map_le_trans,simp)
+apply (force simp: map_le_def)
 done
 
+lemma serialize_value: "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow> \<sigma>' l = \<sigma> l"
+apply (erule serialize.cases)
+apply auto
+done
+lemma serialize_weak_value: "l\<in>dom \<sigma>\<Longrightarrow>serialize_weak (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow> \<sigma>' l = \<sigma> l"
+apply (erule serialize_weak.cases)
+apply auto
+done
+(*lemma weaker_serialize_weak_intro:
+  "(vv=ObjRef l \<and> \<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<longrightarrow> (serialize_weak vv \<sigma> (\<sigma>'(l\<mapsto>(Obj obj)))))"
+apply (rule_tac P="\<lambda> vv \<sigma> \<sigma>'.  ( (vv=ObjRef l\<and>\<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<longrightarrow> (serialize_weak vv \<sigma> (\<sigma>'(l\<mapsto>(Obj obj))))))" in serialize_weak.induct) 
+apply akuto
+apply (case_tac "v=ObjRef l")
+apply auto
+defer
+apply (drule_tac x=v in bspec)
+apply auto
+apply (rule_tac x= "\<sigma>''" in exI)
+apply auto
+apply (clarsimp simp: map_le_def)
+apply (rule_tac x= "\<sigma>'(l \<mapsto> Obj obj)" in exI)
+apply auto
 
+
+apply (rule serialize_weak.intros(1))
+apply auto
+*)
 section {* serialization filter*}
 
 function (sequential) serialization_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
 (*serialization_filter v \<sigma> L  is the set of locations that are recursively referenced by the value v
-  locations in L are EXCLUDED from the set (to prevent looping definition) *)
+  locations in L are EXCLUDED from the set (to prevent non-termination in case of reference loop) *)
   where
     "
     (serialization_filter l \<sigma> L) = (if l\<in>L then {} else
@@ -158,6 +217,7 @@ sigma' is exactly the store captured by the algorithm (the smallest necessary su
 where
 "serialize_filter l \<sigma> \<equiv>  \<sigma> |` serialization_filter l \<sigma> {}" 
 
+(* intermediary lemma for serialization_filter_induct_1*)
 lemma SFI1SG1: "(\<And>a b. l \<notin> L \<Longrightarrow>
                \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
                \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (serialization_filter x \<sigma> (L \<union> {l})) x \<sigma> (L \<union> {l}) \<Longrightarrow>
@@ -174,7 +234,7 @@ apply (case_tac prod)
 apply clarsimp
 apply blast
 done
-
+(* intermediary lemma for serialization_filter_induct_1 and 1B*)
 lemma  SFI1SG2:"(\<And>x2 v nat.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
@@ -184,12 +244,12 @@ lemma  SFI1SG2:"(\<And>x2 v nat.
               P (serialization_filter l' \<sigma> (L \<union> {l})) l' \<sigma> (L \<union> {l}) \<Longrightarrow> P ({l} \<union> serialization_filter l' \<sigma> (L \<union> {l})) l \<sigma> L) \<Longrightarrow>
   \<sigma> l = Some a \<Longrightarrow>  ((\<sigma> l=None \<or>l\<in>L)\<longrightarrow>P {} l \<sigma> L)\<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (serialization_filter l \<sigma> L) l \<sigma> L
   "
-(* intermediary lemma *)
 apply clarsimp
 done
 
-(* INDUCTION PRINCIPLE on Filtering 
+(* INDUCTION PRINCIPLES on Filtering 
 1 - is with an additional variable for the induction set (often useful)
+1B - the same as 1 but weaker on the recurrence hypothesis taking into acccount that the current loc l is filtered
 2 - is the most natural one
 *)
 lemma serialization_filter_induct_1: "   
@@ -220,6 +280,72 @@ apply (case_tac val)
 apply (erule SFI1SG2,simp+)
 done
 
+(* intermediary lemma for serialization_filter_induct_1B*)
+lemma SFI1SG1B: "(\<And>a b. l \<notin> L \<Longrightarrow>
+               \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
+               \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a)-{l}. P (serialization_filter x \<sigma> (L \<union> {l})) x \<sigma> (L \<union> {l}) \<Longrightarrow>
+               P ({l} \<union> \<Union>((\<lambda>x. serialization_filter x \<sigma> (L \<union> {l})) ` (\<Union>(Referenced_locations_Value ` ran a)-{l}))) l \<sigma> L) \<Longrightarrow>
+       (\<And>l \<sigma> L.(\<sigma> l=None \<or>l\<in>L)\<longrightarrow>P {} l \<sigma> L) \<Longrightarrow>
+        (\<And>x2 prod x.
+           l \<notin> L \<Longrightarrow>
+           \<sigma> l = Some x2 \<Longrightarrow>
+           x2 = Obj prod \<Longrightarrow>
+           x \<in> \<Union>(Referenced_locations_Value ` ran (fst prod))-{l} \<Longrightarrow> P (serialization_filter x \<sigma> (L \<union> {l})) x \<sigma> (L \<union> {l})) \<Longrightarrow>
+        \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (serialization_filter l \<sigma> L) l \<sigma> L"
+apply (case_tac prod)
+apply clarsimp
+apply (subgoal_tac "(insert l (\<Union>x\<in>((\<Union>x\<in>ran aa. Referenced_locations_Value x) - {l}) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                     case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
+                                     | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x})))
+ =
+(insert l (\<Union>x\<in>(\<Union>x\<in>ran aa. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                       case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
+                                       | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x})))")
+defer
+apply blast
+apply (subgoal_tac 
+    "\<And>A. ((A - {l}) \<inter> {x. x \<noteq> l \<and> x \<notin> L}) = (A \<inter> {x. x \<noteq> l \<and> x \<notin> L})")
+apply auto
+done
+
+(* INDUCTION PRINCIPLE on Filtering 
+1 - is with an additional variable for the induction set (often useful)
+2 - is the most natural one
+*)
+lemma serialization_filter_induct_1B: "   
+(\<And>l \<sigma> L. (\<sigma> l=None\<or>l\<in>L) \<longrightarrow> P {} l \<sigma> L) \<Longrightarrow> 
+(\<And>l \<sigma> L V. l\<notin>L \<Longrightarrow>  \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L) \<Longrightarrow> 
+(\<And>l \<sigma> L f C.
+        l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (f,C)) \<Longrightarrow> 
+           (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran f))-{l}. 
+                          P (serialization_filter x \<sigma> (L\<union>{l})) x \<sigma> (L\<union>{l})) \<Longrightarrow>
+            P ({l}\<union>(\<Union> ((\<lambda> x. serialization_filter x \<sigma> (L \<union> {l}))` (\<Union>(Referenced_locations_Value`ran(f))-{l})))) l \<sigma> L)  \<Longrightarrow>
+(\<And>l \<sigma> L l'.
+        l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
+           (P (serialization_filter l' \<sigma> (L\<union>{l})) l' \<sigma>  (L\<union>{l}))\<Longrightarrow>
+           (P ({l}\<union>(serialization_filter l' \<sigma> (L\<union>{l}))) l \<sigma> L))         \<Longrightarrow>   
+   P (serialization_filter l' \<sigma>' L') l' \<sigma>' L'"
+apply (rule serialization_filter.induct)
+apply (case_tac "\<sigma> l")
+(*2 CASE None*)
+ apply force
+apply (case_tac a)
+(*2 case obj *)
+ apply (rule SFI1SG1B,clarsimp,simp)
+(*4*)
+   apply ((rotate_tac 1,drule_tac x=l in meta_spec)+,(rotate_tac -1,drule_tac x=\<sigma> in meta_spec)+,(rotate_tac -1,drule_tac x=L in meta_spec)+)
+   apply blast
+  apply ((rotate_tac 1,drule_tac x=l in meta_spec)+,(rotate_tac -1,drule_tac x=\<sigma> in meta_spec)+,(rotate_tac -1,drule_tac x=L in meta_spec)+)
+  apply blast
+ apply ((rotate_tac 1,drule_tac x=l in meta_spec)+,(rotate_tac -1,drule_tac x=\<sigma> in meta_spec)+,(rotate_tac -1,drule_tac x=L in meta_spec)+)
+ apply blast
+apply ((rotate_tac 1,drule_tac x=l in meta_spec)+,(rotate_tac -1,drule_tac x=\<sigma> in meta_spec)+,(rotate_tac -1,drule_tac x=L in meta_spec)+)
+(* CASE StoredVal*)
+apply (case_tac x2)
+ apply simp
+apply (erule SFI1SG2,simp+)
+done
+
 lemma serialization_filter_induct_2: "   (\<And>l \<sigma> L. P {} ) \<Longrightarrow>
 (\<And>l \<sigma> L V.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} ) \<Longrightarrow> 
 (\<And>l \<sigma> L f C.
@@ -236,6 +362,7 @@ apply (insert  serialization_filter_induct_1 [of "(\<lambda> S l \<sigma> L. (P 
 apply auto
 done
 
+section{* Serialization filter lemmas*}
 lemma serialization_filter_subset: "serialization_filter l \<sigma> L \<subseteq> dom \<sigma>"
 apply (rule_tac P= "\<lambda> S l \<sigma> L. (S \<subseteq> dom \<sigma>)" in   serialization_filter_induct_1)
    apply auto
@@ -249,14 +376,151 @@ lemma serialize_subset: "dom (serialize_filter l \<sigma>) \<subseteq> dom \<sig
 apply (insert serialization_filter_subset, auto)
 done
 
-lemma serialize_value: "(serialize_filter l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+lemma serialize_filter_value: "(serialize_filter l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
 apply (subgoal_tac "l'\<in>(serialization_filter l \<sigma> {})")
  apply (drule_tac m=\<sigma> in Map.restrict_in)
  apply force
 apply (rule Map_restrict_Some,blast)
 done
 
+lemma Serialization_excluded_set_subset[rule_format]: 
+"\<forall> L . L\<subseteq>L' \<longrightarrow> serialization_filter l \<sigma> L' \<subseteq> serialization_filter l \<sigma> L"
+apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> serialization_filter l \<sigma> L)" in   serialization_filter_induct_1)
+(*4*)
+   apply clarsimp
+  apply (clarsimp split: Value.splits)
+  apply blast
+ apply clarsimp
+ apply rule
+  apply blast
+ apply clarsimp
+ apply (drule_tac x=xb in bspec,blast) 
+ apply (rotate_tac -1,drule_tac x=xa in bspec,blast) 
+ apply clarsimp
+ apply (drule_tac x="insert l La" in spec)
+ apply clarsimp 
+ apply (erule impE, blast)
+ apply (drule_tac x=xa in bspec,blast) 
+ apply (case_tac "xa\<in>La")
+(*3*)
+  apply clarsimp
+ apply clarsimp
+ apply blast
+apply (intro impI allI)
+apply (drule_tac x="La \<union> {l}" in spec)
+apply auto
+done
 
+lemma serialization_filter_dom_subset_pre_pre: 
+          "\<forall> \<sigma>' v. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>'))"
+apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> S \<subseteq> dom \<sigma>'))" in   serialization_filter_induct_1)
+apply force
+apply clarsimp
+apply (erule serialize.cases,simp,simp,simp)
+apply clarsimp
+apply rule
+apply (drule serialize_value)
+apply force
+apply clarsimp
+apply (drule_tac x=xb in bspec,assumption)
+apply (drule_tac x=xa in bspec,assumption)
+apply (drule_tac x=\<sigma>' in spec)
+apply clarsimp
+apply (case_tac xb)
+apply (clarsimp simp: Referenced_locations_Value_def)
+apply clarsimp
+apply (erule impE)
+apply (erule serialize.cases,clarsimp)
+apply (drule_tac x="ObjRef x2" in bspec,assumption)
+apply clarsimp
+apply (rule serialize_substore,simp,simp)
+apply simp
+
+apply force
+
+apply clarsimp
+apply rule 
+apply clarsimp
+apply (drule serialize_value,force)
+
+apply rule 
+apply clarsimp
+apply (drule serialize_value,force)
+apply clarsimp
+apply rule 
+apply (drule serialize_value,force)
+apply clarsimp
+apply (drule_tac x=\<sigma>' in spec)
+apply (erule impE)
+apply (erule serialize.cases,clarsimp,clarsimp,clarsimp)
+apply force
+done
+
+lemma serialization_filter_dom_subset_pre: 
+          "\<forall> \<sigma>'. (serialize v \<sigma> \<sigma>' \<longrightarrow> (case v of ObjRef l \<Rightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' | null \<Rightarrow> {}\<subseteq> dom \<sigma>') )"
+apply (rule_tac P= "\<lambda> S l \<sigma> L. (\<forall> \<sigma>'. (serialize v \<sigma> \<sigma>' \<longrightarrow> (case v of ObjRef l \<Rightarrow>(S \<subseteq> dom \<sigma>') | null \<Rightarrow>  {}\<subseteq> dom \<sigma>')))" in   serialization_filter_induct_1)
+apply auto
+apply (rule serialize.cases)
+  apply auto
+ apply (split option.splits)
+  apply auto
+(*2*)
+ apply (drule_tac x=xb in bspec)
+  apply auto
+ apply (case_tac xb)
+  apply (auto simp: Referenced_locations_Value_def)
+ apply (drule_tac x="insert l L" in spec)
+ apply  (force simp: map_le_def)
+apply (drule_tac x="insert l L" in spec)
+apply (case_tac v)
+ apply auto
+done
+
+
+lemma serialization_filter_dom_subset: 
+  "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow>  serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' "
+by (drule serialization_filter_dom_subset_pre[of "ObjRef l" \<sigma> \<sigma>'],auto)
+
+lemma serialization_filter_coincide_val: 
+  "serialize v \<sigma> \<sigma>' \<Longrightarrow> (\<forall> L. case v of ObjRef l \<Rightarrow> l'\<in>serialization_filter l \<sigma> L \<longrightarrow> \<sigma>' l' = \<sigma> l' | null \<Rightarrow> True) "
+apply (subgoal_tac "\<forall> v \<sigma> \<sigma>'. serialize v \<sigma> \<sigma>' \<longrightarrow>(\<forall> L. case v of ObjRef l \<Rightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' | null \<Rightarrow> {}\<subseteq> dom \<sigma>')")
+apply (erule serialize.induct)
+prefer 4
+(*4*)
+   apply (clarsimp)
+   apply (drule serialization_filter_dom_subset_pre,force)
+  apply auto
+ apply (drule_tac x=xa in bspec)
+  apply force
+ apply (case_tac xa)
+  apply (force simp: Referenced_locations_Value_def)
+(*2*)
+ apply clarsimp
+ apply (drule_tac x="ObjRef x2" in spec)
+ apply (drule_tac x=\<sigma> in spec)
+ apply (drule_tac x=\<sigma>'' in spec)
+ apply (rotate_tac -1,erule impE)
+  apply force
+ apply (erule impE)
+  apply (rule_tac x="insert l L" in exI)
+  apply force
+ apply (drule_tac x="insert l L" in spec)
+ apply  (force simp: map_le_def)
+(*1*)
+apply (drule_tac x="insert l L" in spec)
+apply (case_tac v,simp,simp)
+ apply (auto)
+done
+
+
+
+lemma serialization_filter_origin: "\<sigma> l = Some y\<Longrightarrow>l\<in> serialization_filter l \<sigma> {}"
+by (auto split: Storable.splits Value.splits option.splits)
+
+
+
+
+section{*serialization filter well formed*}
 lemma serialization_filter_WF_1step_obj[rule_format]: 
   "l\<in>serialization_filter l'' \<sigma> L \<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some (ObjRef l') 
         \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  l'\<in>L\<or>l'\<in>serialization_filter l'' \<sigma> L "
@@ -315,33 +579,6 @@ apply (clarsimp split: option.splits Storable.splits simp: Well_Formed_Store_def
 apply (simp split: Value.splits)
 done
 
-lemma Serialization_excluded_set_subset[rule_format]: "\<forall> L . L\<subseteq>L' \<longrightarrow> serialization_filter l \<sigma> L' \<subseteq> serialization_filter l \<sigma> L"
-apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> serialization_filter l \<sigma> L)" in   serialization_filter_induct_1)
-(*4*)
-   apply clarsimp
-  apply (clarsimp split: Value.splits)
-  apply blast
- apply clarsimp
- apply rule
-  apply blast
- apply clarsimp
- apply (drule_tac x=xb in bspec,blast) 
- apply (rotate_tac -1,drule_tac x=xa in bspec,blast) 
- apply clarsimp
- apply (drule_tac x="insert l La" in spec)
- apply clarsimp 
- apply (erule impE, blast)
- apply (drule_tac x=xa in bspec,blast) 
- apply (case_tac "xa\<in>La")
-(*3*)
-  apply clarsimp
- apply clarsimp
- apply blast
-apply (intro impI allI)
-apply (drule_tac x="La \<union> {l}" in spec)
-apply auto
-done
-
 lemma Serialization_WF: "Well_Formed_Store \<sigma> \<Longrightarrow> Well_Formed_Store (serialize_filter l \<sigma>)"
 apply (unfold Well_Formed_Store_def)
 apply (intro ballI)
@@ -388,57 +625,7 @@ apply (insert serialize_subset[of \<sigma> l])
 apply blast
 done
 
-
-
-lemma serialization_filter_dom_subset_pre: 
-          "serialize v \<sigma> \<sigma>' \<Longrightarrow> \<forall> L. case v of ObjRef l \<Rightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' | null \<Rightarrow> {}\<subseteq> dom \<sigma>' "
-apply (erule serialize.induct)
-  apply auto
- apply (split option.splits)
-  apply auto
-(*2*)
- apply (drule_tac x=xb in bspec)
-  apply auto
- apply (case_tac xb)
-  apply (auto simp: Referenced_locations_Value_def)
- apply (drule_tac x="insert l L" in spec)
- apply  (force simp: map_le_def)
-apply (drule_tac x="insert l L" in spec)
-apply (case_tac v)
- apply auto
-done
-
-
-lemma serialization_filter_dom_subset: "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow>  serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' "
-by (drule serialization_filter_dom_subset_pre[of "ObjRef l" \<sigma> \<sigma>'],auto)
-
-lemma serialization_filter_coincide_val: "serialize v \<sigma> \<sigma>' \<Longrightarrow> (\<forall> L. case v of ObjRef l \<Rightarrow> l'\<in>serialization_filter l \<sigma> L \<longrightarrow> \<sigma>' l' = \<sigma> l' | null \<Rightarrow> True) "
-apply (erule_tac Q="\<lambda> v \<sigma> \<sigma>'. (\<forall> L. case v of ObjRef l \<Rightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' | null \<Rightarrow> {}\<subseteq> dom \<sigma>')" in serialize_composable_inductive_proof)
-(*4*)
-   apply (clarsimp)
-   apply (drule serialization_filter_dom_subset_pre,force)
-  apply auto
- apply (drule_tac x=xa in bspec)
-  apply force
- apply (case_tac xa)
-  apply (force simp: Referenced_locations_Value_def)
-(*2*)
- apply clarsimp
- apply (drule_tac x="insert l L" in spec)
- apply (erule impE)
-  apply (rule_tac x="insert l L" in exI)
-  apply force
- apply  (force simp: map_le_def)
-(*1*)
-apply (drule_tac x="insert l L" in spec)
-apply (case_tac v,simp,simp)
-apply (erule disjE,clarsimp)
-apply (erule impE)
- apply (drule_tac x="insert l L" in spec)
- apply auto
-done
-
-
+section{*serialization filter VS serialize*}
 
 theorem serializationfilter_smallest_serialize: "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow> (serialize_filter l \<sigma>) \<subseteq>\<^sub>m \<sigma>'"
 apply (rule map_le_eq)
@@ -449,11 +636,6 @@ apply (frule_tac l'=x in serialization_filter_coincide_val)
 apply (drule_tac x="{}" in spec)
 apply (auto simp: restrict_map_def)
 done
-
-lemma serialization_filter_origin: "\<sigma> l = Some y\<Longrightarrow>l\<in> serialization_filter l \<sigma> {}"
-by (auto split: Storable.splits Value.splits option.splits)
-
-
 
 lemma serialize_filter_verifies_axiomatic_serialize_1:
     "  ((serialize_filter l' \<sigma>)  l=\<sigma>  l\<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ran(fst(obj)). \<exists>\<sigma>''. (serialize v \<sigma> (serialize_filter l' \<sigma>))))
@@ -467,43 +649,185 @@ lemma serialize_filter_verifies_axiomatic_serialize_2:
 apply (rule serialize.intros(2))
 apply auto
 done
+lemma serialization_filter_verifies_axiomatic_def_in_L: " ( l\<in>L\<Longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` L'))"
+apply (rule serialize_weak.intros(4))
+apply auto
+done
+theorem serialization_filter_verifies_axiomatic_def_pre: "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
+apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
+apply clarify
+apply (rule serialize_weak.intros(4))
+apply (force simp: restrict_map_def)
+apply clarsimp
+apply (case_tac V)
+apply (rule_tac v="null" in serialize_weak.intros(2),clarsimp)  
+apply (rule serialize_weak.intros(3))
+apply (force)
 
-theorem serialization_filter_verifies_axiomatic_def: "Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow> serialize (ObjRef l) \<sigma> (serialize_filter l \<sigma>)"
+apply (rule_tac obj="(f,C)" in serialize_weak.intros(1),clarsimp)
+apply (case_tac v)
+apply (clarsimp simp: ran_def)
+apply (rule_tac x=empty in exI,clarsimp)
+apply (rule serialize_weak.intros(3))
+apply clarsimp
+apply (case_tac "x2=l")
+apply clarsimp
+apply (drule_tac x=x2 in bspec)
+apply (clarsimp simp: ran_def)
+apply rule
+apply force
+apply force
+apply (rule_tac x="ObjRef x2" in exI)
+
+apply (rule_tac x="\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>{b. \<exists>a. f a = Some b}. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                                   case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
+                                                   | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))" in exI)
+apply clarsimp
+
+apply (rule_tac v="ObjRef x2" in serialize_weak.intros(2),clarsimp)  
+apply rule
+apply clarsimp
+apply (rule serialization_filter_verifies_axiomatic_def_in_L,assumption)
+
+apply clarsimp
+apply (rule serialize_weak.intros(2),clarsimp)
+apply (erule disjE)
+apply blast
 sorry
-lemma serialization_filter_verifies_axiomatic_def_pre: " (Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow> serialize (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L))"
-apply (rule_tac P="\<lambda> S l \<sigma> L. Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow>serialize  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1)
+lemma serialization_filter_verifies_axiomatic_def_pre: " (Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L))"
+apply (rule_tac P="\<lambda> S l \<sigma> L. Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow>serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
 apply clarsimp
 apply (case_tac "l\<in>L")
 apply clarsimp
 apply rule
 apply clarsimp
-defer
 apply clarsimp
+apply (rule serialize_weak.intros(4))
+apply force
+apply clarsimp
+
+(*3*)
 apply (clarsimp)
-apply (rule_tac v=V in serialize.intros(2))
+apply (rule_tac v=V in serialize_weak.intros(2))
 apply clarsimp
 apply (case_tac V)
 apply clarsimp
-apply (rule serialize.intros(3))
+apply (rule serialize_weak.intros(3))
 apply force
+
+(*2*)
 apply clarsimp
-apply (rule_tac obj= "(f,C)" in serialize.intros(1))
-apply clarsimp
-apply (drule_tac x=v in bspec,simp)
+apply (rule_tac obj= "(f,C)" and \<sigma>= "\<sigma>|`(insert l L)"  in serialize_weak.intros(1))
+apply clarsimp 
 apply (case_tac v)
 apply clarsimp
 apply (rule_tac x=Map.empty in exI,clarsimp)
-apply (rule serialize.intros(3))
+apply (rule serialize_weak.intros(3))
+(*2*)
+apply (case_tac "x2=l",clarsimp)
+apply (drule_tac x="l" in bspec,clarsimp)
+apply (erule impE,blast)
+
+apply (drule_tac x=x2 in bspec,clarsimp)
+
+
 apply (clarsimp)
 apply (drule_tac x=x2 in bspec,clarsimp)
+apply (case_tac "x2\<in>dom \<sigma>")
+apply clarsimp
+apply (rule_tac x="\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>ran f. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                        case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj)))
+                                        | Some (StoredVal null) \<Rightarrow> {x} | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))"
+ in exI,clarsimp)
+
+apply clarsimp
 apply (rule_tac x=
 "\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>ran f. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
                                                                case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
                                                                | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))"
 in exI)
 apply clarsimp
+
+
+apply (case_tac "x2=l")
+apply clarsimp
+apply (case_tac "x2\<in>L")
+apply clarsimp
+apply clarsimp
+apply (intro impI)
+apply (rule_tac obj=x1 in serialize_filter_verifies_axiomatic_serialize_1)
+apply clarsimp
+apply (insert serialize.simps[of "(ObjRef l)" \<sigma> "(serialize_filter l \<sigma>)"])
+apply clarsimp
+apply clarsimp+
+apply (case_tac y)
+apply clarsimp
+
+apply (rule disjI)
+apply auto
+apply (case_tac y,simp)
+apply (rule serialize.intros)
+apply clarsimp
+
+apply (frule_tac l=l in Serialization_WF)
+apply (case_tac "a")
+apply auto
+sorry
+lemma serialization_filter_verifies_axiomatic_def_pre: " (Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L))"
+apply (rule_tac P="\<lambda> S l \<sigma> L. Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow>serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
+apply clarsimp
+apply (case_tac "l\<in>L")
+apply clarsimp
+apply rule
+apply clarsimp
+apply clarsimp
+apply (rule serialize_weak.intros(4))
+apply force
+apply clarsimp
+
+(*3*)
+apply (clarsimp)
+apply (rule_tac v=V in serialize_weak.intros(2))
+apply clarsimp
+apply (case_tac V)
+apply clarsimp
+apply (rule serialize_weak.intros(3))
+apply force
+
+(*2*)
+apply clarsimp
+apply (rule_tac obj= "(f,C)" and \<sigma>= "\<sigma>|`(insert l L)"  in serialize_weak.intros(1))
+apply clarsimp 
+apply (case_tac v)
+apply clarsimp
+apply (rule_tac x=Map.empty in exI,clarsimp)
+apply (rule serialize_weak.intros(3))
+(*2*)
+apply (case_tac "x2=l",clarsimp)
+apply (drule_tac x="l" in bspec,clarsimp)
+apply (erule impE,blast)
+
+apply (drule_tac x=x2 in bspec,clarsimp)
+
+
+apply (clarsimp)
+apply (drule_tac x=x2 in bspec,clarsimp)
 apply (case_tac "x2\<in>dom \<sigma>")
 apply clarsimp
+apply (rule_tac x="\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>ran f. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                        case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj)))
+                                        | Some (StoredVal null) \<Rightarrow> {x} | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))"
+ in exI,clarsimp)
+
+apply clarsimp
+apply (rule_tac x=
+"\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>ran f. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
+                                                               case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
+                                                               | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))"
+in exI)
+apply clarsimp
+
+
 apply (case_tac "x2=l")
 apply clarsimp
 apply (case_tac "x2\<in>L")
@@ -538,7 +862,7 @@ sorry
 "
 sorry
 *)
-
+*)
 section{*renaming*}
 primrec subst_Value :: " Value \<Rightarrow> (Location\<Rightarrow>Location) \<Rightarrow> Value"
 where
