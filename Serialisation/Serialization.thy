@@ -13,6 +13,7 @@ section{*generic lemmas*}
 apply (unfold restrict_map_def)
 apply auto
   *)       
+
 axiomatization where 
 finite_map: "finite (dom (\<sigma>::Store))"
 and
@@ -128,10 +129,37 @@ coinductive serialize_weak :: "Value \<Rightarrow> Store \<Rightarrow> Store \<R
 
 section{*serialize lemmas*}
 
-lemma serialize_substore[rule_format]: " serialize v \<sigma> \<sigma>' \<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>''\<Longrightarrow>  serialize v \<sigma> \<sigma>''"
+lemma format_conj: "(P\<and>Q\<longrightarrow>R) \<Longrightarrow> (P\<Longrightarrow>Q\<Longrightarrow>R)"
+by simp
+
+lemma serialize_substore_result[THEN format_conj,rule_format]: " serialize v \<sigma> \<sigma>' \<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>''\<longrightarrow>  serialize v \<sigma> \<sigma>''"
+apply (intro impI)
 apply (erule serialize.coinduct)
 apply clarsimp
 apply (erule serialize.cases)
+apply auto
+(*4*)
+   apply (force simp: map_le_def)
+  apply (clarsimp simp: map_le_def)
+  apply (drule_tac x=v in bspec)
+   apply force
+  apply force
+(*2*)
+ apply (rotate_tac -1, erule contrapos_pp,clarsimp)
+  apply (drule_tac x=v in bspec)
+  apply force
+ apply clarsimp
+ apply (rule_tac x=\<sigma>'' in exI)
+ apply clarsimp
+ apply (erule map_le_trans,simp)
+apply (force simp: map_le_def)
+done
+
+lemma serialize_weak_substore_result[THEN format_conj]: " (serialize_weak v \<sigma> \<sigma>' \<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>'')\<longrightarrow>  serialize_weak v \<sigma> \<sigma>''"
+apply (intro impI)
+apply (erule serialize_weak.coinduct)
+apply clarsimp
+apply (erule serialize_weak.cases)
 apply auto
 (*4*)
    apply (force simp: map_le_def)
@@ -154,22 +182,424 @@ lemma serialize_value: "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow
 apply (erule serialize.cases)
 apply auto
 done
-lemma serialize_weak_value: "l\<in>dom \<sigma>\<Longrightarrow>serialize_weak (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow> \<sigma>' l = \<sigma> l"
+lemma serialize_weak_value: "serialize_weak (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow>l\<in>dom \<sigma>\<Longrightarrow> \<sigma>' l = \<sigma> l"
 apply (erule serialize_weak.cases)
 apply auto
 done
-lemma weaker_serialize_weak_intro:
-  " vv=ObjRef l \<and>\<sigma>''=(\<sigma>'(l\<mapsto>(Obj obj)))\<and>\<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
-    \<Longrightarrow> (serialize_weak vv \<sigma> \<sigma>'')"
+
+lemma serialize_weak_weaker_intro_pre:
+  " vv=ObjRef l \<and>\<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<Longrightarrow> (serialize_weak vv \<sigma> \<sigma>')"
 apply (erule serialize_weak.coinduct) 
 apply (case_tac obj,clarsimp)
 apply (case_tac "v=ObjRef l")
- apply (rule_tac x= "\<sigma>'(l \<mapsto> Obj obj)" in exI)
- apply (force simp: map_le_def)
-apply (drule_tac x=v in bspec)
- apply force
-apply (force simp: map_le_def)
+ apply (rule_tac x= xb in exI,clarsimp+)
 done
+
+(*no need to iter on self reference when checking serialize(weak) *)
+lemma serialize_weak_weaker_intro:
+" \<sigma>(l) = Some (Obj obj) \<Longrightarrow> \<sigma>'(l) = \<sigma>(l) \<Longrightarrow> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')"
+by (rule serialize_weak_weaker_intro_pre,auto)
+
+
+lemma serialize_weak_substore[THEN format_conj]: " (serialize_weak v \<sigma> \<sigma>' \<and>\<sigma>''\<subseteq>\<^sub>m  \<sigma> ) \<longrightarrow>  serialize_weak v \<sigma>'' \<sigma>'"
+apply (intro impI)
+apply (erule serialize_weak.coinduct)
+apply (case_tac x)
+ apply clarsimp
+ apply (case_tac "x2\<in>dom xa")
+  apply (subgoal_tac "xb x2 = \<sigma> x2")
+  apply (elim conjE)
+(*6*)
+     apply (erule serialize_weak.cases)
+     apply (clarsimp simp: map_le_def)
+     apply (auto simp: map_le_def)
+(*1*)
+apply (rule serialize_weak_value)
+ apply (auto simp: map_le_def)
+  apply force
+done
+
+lemma serialize_weak_remove_1_unreferenced_pre: 
+"(l\<in>dom \<sigma>\<and>serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<and>(\<exists> \<sigma>''. serialize_weak v \<sigma> \<sigma>''\<and> l\<notin>dom \<sigma>''))\<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'"
+apply (erule serialize_weak.coinduct)
+apply (case_tac x)
+apply clarsimp
+apply (elim conjE)
+apply (case_tac "x2=l")
+(*2 easy when l=x2 *)
+ apply (elim exE conjE,simp)
+ apply (drule serialize_weak_value,assumption)
+ apply clarsimp
+(*1*)
+apply (elim exE conjE,simp)
+apply (case_tac "x2\<in>dom xa")
+(*2 we eliminate the case x2 in dom xa *)
+defer
+apply force
+apply (case_tac "xa x2")
+ apply force
+apply (case_tac a)
+ apply (case_tac x1)
+ apply simp
+ apply (frule serialize_weak_value)
+  apply clarsimp
+ apply (intro conjI)
+  apply force
+(*2*)
+ apply (intro ballI)
+ apply (erule serialize_weak.cases,simp+)
+    apply (erule serialize_weak.cases,simp+)
+(*8*)
+       apply (elim conjE exE)
+       apply (drule_tac x=v in bspec, assumption)
+       apply (drule_tac x=v in bspec, force)
+       apply (elim conjE exE)
+       apply (rule_tac x=\<sigma>'''''' in exI)
+       apply simp
+       apply (intro disjI1)
+       apply (rule_tac x=\<sigma>''' in exI)
+       apply simp
+       apply (rule serialize_weak_substore_result)
+(*10*)
+         apply force
+        apply simp+
+(*4*)
+   apply force
+  apply force
+ apply force
+apply simp
+apply (erule serialize_weak.cases)
+   apply auto
+apply (erule serialize_weak.cases)
+   apply auto
+done
+
+lemma serialize_weak_remove_1_unreferenced: 
+"serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<Longrightarrow>(\<exists> \<sigma>''. serialize_weak v \<sigma> \<sigma>''\<and> l\<notin>dom \<sigma>'')\<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'"
+apply (case_tac "l\<in>dom \<sigma>")
+apply (rule serialize_weak_remove_1_unreferenced_pre)
+apply auto
+apply (subgoal_tac "(\<sigma> |` (- {l})) = \<sigma>")
+apply (auto simp: restrict_map_def)
+done
+
+lemma serialize_weak_remove_1_referenced_pre: 
+"l\<in>dom \<sigma>\<and>serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<and> serialize_weak (ObjRef l) \<sigma> \<sigma>''\<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>1\<and>\<sigma>''\<subseteq>\<^sub>m  \<sigma>1
+        \<Longrightarrow>  serialize_weak v \<sigma> \<sigma>1"
+apply (erule serialize_weak.coinduct)
+apply (case_tac x)
+apply clarsimp
+apply (elim conjE)
+apply (case_tac "x2=l")
+(*2 when l=x2 *)
+ apply (frule serialize_weak_value,assumption)
+ apply (simp add: map_le_def)
+ apply (frule_tac x=l in bspec)
+ back
+  apply force
+ apply simp
+ apply (case_tac "xa l")
+  apply (erule serialize_weak.cases,simp+)
+ apply (case_tac a)
+  apply (erule serialize_weak.cases,simp+)
+(*6*)
+     apply force
+    apply force
+   apply force
+  apply (erule serialize_weak.cases,simp+)
+(*6*)
+     apply clarsimp
+     apply (drule_tac x=v in bspec, assumption)
+     apply clarsimp
+     apply (rule_tac x=\<sigma>'''' in exI)
+     apply (force simp: map_le_def)
+    apply force
+   apply force
+  apply force
+ apply (erule serialize_weak.cases,simp+)
+(*5*)
+    apply clarsimp
+   apply force
+  apply force
+ apply (rule disjI2)
+ apply simp
+ apply (erule serialize_weak.cases,simp+)
+(*4*)
+   apply (rule disjI2)
+   apply (rule serialize_weak_substore_result,simp+)
+    apply force
+   apply (force simp: map_le_def)
+  apply force
+ apply force
+
+(*1*)
+apply (case_tac "x2\<in>dom xa")
+(*2 we eliminate the case x2 in dom xa *)
+defer
+apply force
+(*1 else*)
+apply (case_tac "xa x2")
+ apply force
+apply (case_tac a)
+ apply (case_tac x1)
+ apply simp
+ apply (frule serialize_weak_value)
+  apply clarsimp
+ apply (intro conjI)
+  apply (force simp: map_le_def)
+(*2*)
+ apply (intro ballI)
+ apply (erule serialize_weak.cases,simp+)
+    apply (erule serialize_weak.cases,simp+)
+(*8*)
+       apply (elim conjE exE)
+       apply (drule_tac x=v in bspec, force)
+       apply (elim conjE exE)
+       apply (rule_tac x=xb in exI)
+       apply (intro conjI)       
+        apply (intro disjI1)
+        apply (intro conjI)       
+(*11*)
+          apply (rule serialize_weak_substore_result,force,assumption)
+          apply force
+         apply (force simp: map_le_def)
+        apply (force simp: map_le_def)
+       apply simp+
+      apply clarsimp
+      apply (drule_tac x=v in bspec, assumption)
+      apply clarsimp
+      apply (rule_tac x=xb in exI)
+      apply (intro conjI)       
+       apply (intro disjI1)
+       apply (intro conjI)       
+(*10*)
+         apply (rule serialize_weak_substore_result,force,assumption,simp)
+         apply clarsimp+
+
+(*1*)
+apply (erule serialize_weak.cases)
+   apply auto
+apply (erule serialize_weak.cases)
+   apply (auto)
+ apply (force  simp: map_le_def)
+apply (force  simp: map_le_def)
+done
+
+lemma serialize_weak_remove_1_referenced: 
+"serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<Longrightarrow> serialize_weak (ObjRef l) \<sigma> \<sigma>''\<Longrightarrow>\<sigma>'\<subseteq>\<^sub>m  \<sigma>'''\<Longrightarrow>\<sigma>''\<subseteq>\<^sub>m  \<sigma>'''
+        \<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'''"
+apply (case_tac "l\<in>dom \<sigma>")
+apply (rule serialize_weak_remove_1_referenced_pre,simp)
+apply (subgoal_tac "(\<sigma> |` (- {l})) = \<sigma>",simp)
+apply (rule serialize_weak_substore_result)
+apply (auto simp: restrict_map_def)
+done
+
+lemma serialize_weak_remove_one_obj_pre: 
+"\<sigma> l = Some (Obj obj)\<and>serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<and> \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<and>
+(\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) \<and>\<sigma>l l = Some (Obj obj)
+        \<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'"
+apply (erule serialize_weak.coinduct)
+apply (case_tac x)
+ apply clarsimp
+apply (elim conjE)
+apply (case_tac "x2=l")
+(*2 when l=x2 *)
+ apply (clarsimp simp: map_le_def)
+ apply (intro conjI,force)
+ apply (case_tac obj,clarsimp)
+ apply (case_tac "v=ObjRef l")
+  apply clarsimp
+  apply (rule_tac x=xb in exI)
+  apply force
+ apply (frule_tac x=v in bspec)
+  apply force
+ apply (elim exE conjE)
+ apply (rule_tac x=\<sigma>l in exI)
+ apply (intro conjI disjI1)
+   apply (rule serialize_weak_substore_result,simp+)
+   apply (clarsimp simp: map_le_def)
+   apply (clarsimp simp: map_le_def)
+   apply (clarsimp simp: map_le_def)
+
+(*1*)
+apply (case_tac "x2\<in>dom xa")
+(*2 we eliminate the case x2 in dom xa *)
+defer
+apply force
+(*1 else*)
+apply (case_tac "xa x2")
+ apply force
+apply (case_tac a)
+ apply (case_tac x1)
+ apply simp
+ apply (frule serialize_weak_value)
+  apply clarsimp
+ apply (intro conjI)
+  apply (clarsimp simp: map_le_def)
+(*2*)
+ apply (intro ballI)
+ apply (erule serialize_weak.cases,simp+)
+(*5*)
+    apply (elim conjE exE)
+    apply (drule_tac x=v in bspec, force)
+    apply (elim conjE exE)
+    apply (rule_tac x=xb in exI)
+    apply (intro conjI)       
+     apply (intro disjI1)
+     apply (intro conjI)
+(*7*)
+      apply (rule serialize_weak_substore_result,force,force)
+     apply clarsimp+
+
+(*1*)
+apply (erule serialize_weak.cases)
+   apply auto
+done
+
+lemma serialize_weak_remove_one_obj:
+" \<sigma>l l = Some (Obj obj)
+        \<Longrightarrow>\<sigma> l = Some (Obj obj) \<Longrightarrow> 
+ serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' \<Longrightarrow>
+ \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<Longrightarrow>
+ (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) \<Longrightarrow>
+ serialize_weak v \<sigma> \<sigma>'"
+apply (rule_tac \<sigma>l=\<sigma>l in serialize_weak_remove_one_obj_pre,(intro conjI,simp)+)
+apply (rule serialize_weak_substore_result)
+by auto
+
+lemma serialize_weak_serialize_one_obj:
+" \<sigma>l l = Some (Obj obj)
+  \<Longrightarrow>\<sigma> l = Some (Obj obj) \<Longrightarrow>
+ (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) \<Longrightarrow>
+ serialize_weak (ObjRef l) \<sigma> \<sigma>l"
+apply (rule_tac obj=obj in serialize_weak_weaker_intro,simp+)
+apply (intro ballI conjI)
+apply (rule_tac x=\<sigma>l in exI)
+apply clarsimp
+apply (frule_tac x=v in bspec,force)
+apply (elim exE conjE)
+apply (rule_tac \<sigma>l=\<sigma>l in serialize_weak_remove_one_obj,simp+)
+done
+
+lemma serialize_weak_serialize_one_self_ref_pre:
+" v= ObjRef l \<and>\<sigma> l = Some (StoredVal (ObjRef l)) \<and> \<sigma>' l = \<sigma> l \<and> \<sigma> l = Some (StoredVal (ObjRef l)) \<Longrightarrow>  serialize_weak v \<sigma>  \<sigma>'"
+by (erule serialize_weak.coinduct, auto)
+
+lemma serialize_weak_serialize_one_self_ref:
+"\<sigma> l = Some (StoredVal (ObjRef l)) \<Longrightarrow> \<sigma>' l = \<sigma> l \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l)) \<Longrightarrow>  serialize_weak (ObjRef l) \<sigma>  \<sigma>'"
+by (rule serialize_weak_serialize_one_self_ref_pre, auto)
+
+
+lemma serialize_weak_remove_one_ref_pre: 
+"\<sigma> l = Some (StoredVal (ObjRef l'))\<and>serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<and> \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<and>
+ serialize_weak (ObjRef l') (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l \<and>\<sigma>l l = Some (StoredVal (ObjRef l'))
+        \<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'"
+apply (erule serialize_weak.coinduct)
+apply (case_tac x)
+ apply clarsimp
+apply (elim conjE)
+apply (case_tac "x2=l")
+(*2 when l=x2 *)
+ apply (clarsimp simp: map_le_def)
+ apply (intro conjI,force)
+ apply (intro conjI disjI1)
+   apply (rule_tac \<sigma>'1=\<sigma>'' in serialize_weak_substore_result)
+    apply assumption
+   apply (force simp: map_le_def)
+
+(*1 the rest is similar to the obj case*)
+apply (case_tac "x2\<in>dom xa")
+(*2 we eliminate the case x2 in dom xa *)
+defer
+apply force
+(*1 else*)
+apply (case_tac "xa x2")
+ apply force
+apply (case_tac a)
+ apply (case_tac x1)
+ apply simp
+ apply (frule serialize_weak_value)
+  apply clarsimp
+ apply (intro conjI)
+  apply (clarsimp simp: map_le_def)
+(*2*)
+ apply (intro ballI)
+ apply (erule serialize_weak.cases,simp+)
+(*5*)
+    apply (elim conjE exE)
+    apply (drule_tac x=v in bspec, force)
+    apply (elim conjE exE)
+    apply (rule_tac x=xb in exI)
+    apply (intro conjI)       
+     apply (intro disjI1)
+     apply (intro conjI)
+(*7*)
+      apply (rule serialize_weak_substore_result,force,force)
+     apply clarsimp+
+
+(*1*)
+apply (erule serialize_weak.cases)
+   apply auto
+done
+
+lemma serialize_weak_remove_one_ref:
+" \<sigma>l l = Some (StoredVal (ObjRef l'))
+        \<Longrightarrow>\<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
+ serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' \<Longrightarrow>
+ \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<Longrightarrow>
+serialize_weak (ObjRef l') (\<sigma> |` (- {l})) \<sigma>l \<Longrightarrow>
+ serialize_weak v \<sigma> \<sigma>'"
+apply (rule_tac \<sigma>l=\<sigma>l in serialize_weak_remove_one_ref_pre,(intro conjI,simp)+)
+apply (rule serialize_weak_substore_result)
+by auto
+
+
+lemma serialize_weak_serialize_one_ref:
+" \<sigma>l l = Some (StoredVal (ObjRef l'))  \<Longrightarrow> 
+  \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
+ serialize_weak (ObjRef l') (\<sigma>|` (-{l}))  \<sigma>l \<Longrightarrow>
+ serialize_weak (ObjRef l) \<sigma> \<sigma>l"
+apply (rule_tac v="ObjRef l'" in serialize_weak.intros(2),auto)
+apply (rule_tac \<sigma>l=\<sigma>l and \<sigma>''=\<sigma>l in serialize_weak_remove_one_ref,simp+)
+done
+
+lemma serialize_weak_serialize_pre: 
+"Well_Formed_Store \<sigma> \<and>(Referenced_locations_Value v) \<subseteq> (dom \<sigma>)\<and> serialize_weak v \<sigma> \<sigma>'
+ \<Longrightarrow> serialize v \<sigma> \<sigma>' "
+apply (erule serialize.coinduct)
+apply (case_tac x)
+apply force
+
+apply (simp add: Referenced_locations_Value_def)
+apply (elim conjE)
+apply (case_tac "xa x2")
+apply force
+apply (case_tac a)
+apply (case_tac x1)
+ apply (erule serialize_weak.cases,simp+)
+ apply clarsimp
+ apply (case_tac v,force)
+ apply (drule_tac x=v in bspec,force,clarsimp)
+ apply (rule_tac x=\<sigma>'' in exI)
+ apply (intro conjI disjI1)
+ apply (simp add: ran_def)
+ apply (elim exE)
+ apply (erule Well_Formed_StoreD_obj,simp+)
+
+ apply (erule serialize_weak.cases,simp+)
+ apply (case_tac x2a,force,simp)
+ apply (rule disjI1)
+ apply (rule Well_Formed_StoreD_ref)
+ apply auto
+done
+
+theorem serialize_weak_serialize: 
+"Well_Formed_Store \<sigma> \<Longrightarrow>(Referenced_locations_Value v) \<subseteq> (dom \<sigma>) \<Longrightarrow> serialize_weak v \<sigma> \<sigma>'
+ \<Longrightarrow> serialize v \<sigma> \<sigma>' "
+by (rule serialize_weak_serialize_pre,auto)
 
 section {* serialization filter*}
 
@@ -427,9 +857,9 @@ apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v. (serialize 
  apply (erule impE)
   apply (erule serialize.cases,clarsimp)
     apply (drule_tac x="ObjRef x2" in bspec,assumption)
-    apply clarsimp
-    apply (rule serialize_substore,simp,simp)
-  apply simp
+    apply clarsimp+
+    apply (rule serialize_substore_result)
+  apply simp+
 (*2*)
  apply force
 apply clarsimp
@@ -479,12 +909,9 @@ apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v l'. (seriali
   apply (erule serialize.cases,clarsimp)
     apply (drule_tac x="ObjRef x2" in bspec,assumption)
     apply clarsimp
-    apply (rule serialize_substore,simp,simp)
-  apply simp
-(*2*)
- apply force
-apply clarsimp
-apply (intro conjI)
+    apply (rule serialize_substore_result)
+     apply simp+
+ apply (intro conjI)
 (*3*)  
   apply clarsimp
   apply (drule serialize_value,force)
@@ -498,7 +925,7 @@ apply clarsimp
 apply (drule_tac x=\<sigma>' in spec)
 apply (erule impE)
  apply (erule serialize.cases)
-apply auto
+   apply auto
 done
 
 lemma serialization_filter_coincide_val: 
@@ -645,47 +1072,64 @@ apply (rule serialize_weak.intros(4))
 apply auto
 done
 
-theorem serialization_filter_verifies_axiomatic_def_pre: "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
+
+
+theorem serialization_filter_verifies_serialize_weak_axiomatic_def: "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
 apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
-apply clarify
-apply (rule serialize_weak.intros(4))
-apply (force simp: restrict_map_def)
-apply clarsimp
-apply (case_tac V)
-apply (rule_tac v="null" in serialize_weak.intros(2),clarsimp)  
-apply (rule serialize_weak.intros(3))
-apply (force)
+(*4 None*)
+   apply clarify
+   apply (rule serialize_weak.intros(4))
+   apply (force simp: restrict_map_def)
+(*3 notobjref*)
+  apply (case_tac V)
+   apply (rule_tac v="null" in serialize_weak.intros(2),clarsimp)  
+   apply (rule serialize_weak.intros(3))
+  apply (force)
 
-apply (rule_tac obj="(f,C)" in serialize_weak.intros(1),clarsimp)
-apply (case_tac v)
-apply (clarsimp simp: ran_def)
-apply (rule_tac x=empty in exI,clarsimp)
-apply (rule serialize_weak.intros(3))
-apply clarsimp
-apply (case_tac "x2=l")
-apply clarsimp
-apply (drule_tac x=x2 in bspec)
-apply (clarsimp simp: ran_def)
-apply rule
-apply force
-apply force
-apply (rule_tac x="ObjRef x2" in exI)
+(*2 obj*)
+ apply (rule serialize_weak_serialize_one_obj,simp,simp)
+ apply (intro ballI)
+ apply (case_tac v)
+  apply (rule_tac x=empty in exI)
+  apply clarsimp
+  apply (rule serialize_weak.intros)
+ apply (drule_tac x=x2 in bspec)
+  apply force
+ apply (rule_tac x="(\<sigma> |` (if x2 \<in> L then {}
+                          else case \<sigma> x2 of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x2} \<union> \<Union>((\<lambda>x. serialization_filter x \<sigma> (insert l L \<union> {x2})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x2}
+                               | Some (StoredVal (ObjRef l')) \<Rightarrow> {x2} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x2})))" in exI)
+ apply clarsimp
+  apply (subgoal_tac " (\<sigma> |` (- insert l L)) = (\<sigma> |` (- L \<inter> - {l}))")
+  apply (intro conjI impI)
+(*5*)
+    apply (rule serialize_weak.intros(4),force)
+   apply clarsimp
+  apply (force simp: map_le_def Map.restrict_map_def)
+ apply (force simp: Map.restrict_map_def)
 
-apply (rule_tac x="\<sigma> |` insert l (\<Union>x\<in>(\<Union>x\<in>{b. \<exists>a. f a = Some b}. Referenced_locations_Value x) \<inter> {x. x \<noteq> l \<and> x \<notin> L}.
-                                                   case \<sigma> x of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow> {x} \<union> \<Union>((\<lambda>xa. serialization_filter xa \<sigma> (insert l L \<union> {x})) ` \<Union>(Referenced_locations_Value ` ran (fst obj))) | Some (StoredVal null) \<Rightarrow> {x}
-                                                   | Some (StoredVal (ObjRef l')) \<Rightarrow> {x} \<union> serialization_filter l' \<sigma> (insert l L \<union> {x}))" in exI)
+(*1 ref*)
+apply (rule serialize_weak_serialize_one_ref,simp+)
+apply (intro conjI)
+  apply clarsimp
+  apply (rule serialize_weak.intros(4),force)
+ apply clarsimp
+ apply (rule serialize_weak.intros(4),force)
 apply clarsimp
+apply (subgoal_tac " (\<sigma> |` (- insert l L)) = (\<sigma> |` (- L \<inter> - {l}))")
+ apply clarsimp
+ apply (rule serialize_weak_substore_result,simp)
+ apply (force simp: map_le_def )
+apply (force simp: Map.restrict_map_def)
+done
 
-apply (rule_tac v="ObjRef x2" in serialize_weak.intros(2),clarsimp)  
-apply rule
-apply clarsimp
-apply (rule serialization_filter_verifies_axiomatic_def_in_L,assumption)
+theorem serialization_filter_verifies_serialize_axiomatic_def: 
+"Well_Formed_Store \<sigma>\<Longrightarrow> l\<in>dom \<sigma> \<Longrightarrow>serialize (ObjRef l) \<sigma> (serialize_filter l \<sigma>)"
+apply (subgoal_tac "serialize_weak (ObjRef l) (\<sigma>|`(-{})) (\<sigma>|` (serialization_filter l \<sigma> {}))")
+ apply (erule serialize_weak_serialize,simp,simp add: Map.restrict_map_def)
+apply (rule serialization_filter_verifies_serialize_weak_axiomatic_def)
+done
 
-apply clarsimp
-apply (rule serialize_weak.intros(2),clarsimp)
-apply (erule disjE)
-apply blast
-sorry
+apply (rule  serialization_filter_verifies_serialize_weak_axiomatic_def)
 lemma serialization_filter_verifies_axiomatic_def_pre: " (Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L))"
 apply (rule_tac P="\<lambda> S l \<sigma> L. Well_Formed_Store \<sigma> \<longrightarrow> l\<in>dom \<sigma>\<longrightarrow>serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
 apply clarsimp
