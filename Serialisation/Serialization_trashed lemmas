@@ -39,3 +39,22 @@ apply (rule Union_list_unfold_one_generalised)
 apply (simp(no_asm_use))
 apply force
 done
+
+
+lemma serialize_filter_verifies_axiomatic_serialize_1:
+    "  ((serialize_filter l' \<sigma>)  l=\<sigma>  l\<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ran(fst(obj)). \<exists>\<sigma>''. (serialize v \<sigma> (serialize_filter l' \<sigma>))))
+     \<Longrightarrow> (serialize (ObjRef l) \<sigma> (serialize_filter l' \<sigma>))" 
+apply (rule serialize.intros)
+apply auto
+done
+
+lemma serialize_filter_verifies_axiomatic_serialize_2:
+    " (serialize_filter l' \<sigma>)(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (StoredVal v) \<and>  (serialize v \<sigma> (serialize_filter l' \<sigma>))\<Longrightarrow> (serialize (ObjRef l) \<sigma> (serialize_filter l' \<sigma>))" 
+apply (rule serialize.intros(2))
+apply auto
+done
+lemma serialization_filter_verifies_axiomatic_def_in_L: " ( l\<in>L\<Longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` L'))"
+apply (rule serialize_weak.intros(4))
+apply auto
+done
+

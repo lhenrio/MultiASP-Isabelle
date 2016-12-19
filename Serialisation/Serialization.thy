@@ -132,6 +132,7 @@ section{*serialize lemmas*}
 lemma format_conj: "(P\<and>Q\<longrightarrow>R) \<Longrightarrow> (P\<Longrightarrow>Q\<Longrightarrow>R)"
 by simp
 
+
 lemma serialize_substore_result[THEN format_conj,rule_format]: " serialize v \<sigma> \<sigma>' \<and>\<sigma>'\<subseteq>\<^sub>m  \<sigma>''\<longrightarrow>  serialize v \<sigma> \<sigma>''"
 apply (intro impI)
 apply (erule serialize.coinduct)
@@ -187,21 +188,6 @@ apply (erule serialize_weak.cases)
 apply auto
 done
 
-lemma serialize_weak_weaker_intro_pre:
-  " vv=ObjRef l \<and>\<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
-    \<Longrightarrow> (serialize_weak vv \<sigma> \<sigma>')"
-apply (erule serialize_weak.coinduct) 
-apply (case_tac obj,clarsimp)
-apply (case_tac "v=ObjRef l")
- apply (rule_tac x= xb in exI,clarsimp+)
-done
-
-(*no need to iter on self reference when checking serialize(weak) *)
-lemma serialize_weak_weaker_intro:
-" \<sigma>(l) = Some (Obj obj) \<Longrightarrow> \<sigma>'(l) = \<sigma>(l) \<Longrightarrow> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
-    \<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')"
-by (rule serialize_weak_weaker_intro_pre,auto)
-
 
 lemma serialize_weak_substore[THEN format_conj]: " (serialize_weak v \<sigma> \<sigma>' \<and>\<sigma>''\<subseteq>\<^sub>m  \<sigma> ) \<longrightarrow>  serialize_weak v \<sigma>'' \<sigma>'"
 apply (intro impI)
@@ -220,6 +206,24 @@ apply (rule serialize_weak_value)
  apply (auto simp: map_le_def)
   apply force
 done
+
+
+lemma serialize_weak_weaker_intro_pre:
+  " vv=ObjRef l \<and>\<sigma>'(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<Longrightarrow> (serialize_weak vv \<sigma> \<sigma>')"
+apply (erule serialize_weak.coinduct) 
+apply (case_tac obj,clarsimp)
+apply (case_tac "v=ObjRef l")
+ apply (rule_tac x= xb in exI,clarsimp+)
+done
+
+(*no need to iter on self reference when checking serialize(weak) *)
+lemma serialize_weak_weaker_intro:
+" \<sigma>(l) = Some (Obj obj) \<Longrightarrow> \<sigma>'(l) = \<sigma>(l) \<Longrightarrow> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v \<sigma> \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>'))
+    \<Longrightarrow> (serialize_weak (ObjRef l) \<sigma> \<sigma>')"
+by (rule serialize_weak_weaker_intro_pre,auto)
+
+
 
 lemma serialize_weak_remove_1_unreferenced_pre: 
 "(l\<in>dom \<sigma>\<and>serialize_weak v (\<sigma>|` (-{l})) \<sigma>' \<and>(\<exists> \<sigma>''. serialize_weak v \<sigma> \<sigma>''\<and> l\<notin>dom \<sigma>''))\<Longrightarrow>  serialize_weak v \<sigma> \<sigma>'"
@@ -461,20 +465,21 @@ done
 
 lemma serialize_weak_remove_one_obj:
 " \<sigma>l l = Some (Obj obj)
-        \<Longrightarrow>\<sigma> l = Some (Obj obj) \<Longrightarrow> 
- serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' \<Longrightarrow>
- \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<Longrightarrow>
- (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) \<Longrightarrow>
- serialize_weak v \<sigma> \<sigma>'"
+        \<Longrightarrow>\<sigma> l = Some (Obj obj) 
+        \<Longrightarrow>  serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' 
+        \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' 
+        \<Longrightarrow> \<sigma>l\<subseteq>\<^sub>m  \<sigma>' 
+        \<Longrightarrow> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) 
+            \<Longrightarrow> serialize_weak v \<sigma> \<sigma>'"
 apply (rule_tac \<sigma>l=\<sigma>l in serialize_weak_remove_one_obj_pre,(intro conjI,simp)+)
 apply (rule serialize_weak_substore_result)
 by auto
 
 lemma serialize_weak_serialize_one_obj:
 " \<sigma>l l = Some (Obj obj)
-  \<Longrightarrow>\<sigma> l = Some (Obj obj) \<Longrightarrow>
- (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) \<Longrightarrow>
- serialize_weak (ObjRef l) \<sigma> \<sigma>l"
+  \<Longrightarrow>\<sigma> l = Some (Obj obj) 
+  \<Longrightarrow> (\<forall> v\<in> ((ran(fst(obj)) - {ObjRef l})). \<exists>\<sigma>''. (serialize_weak v (\<sigma>|` (-{l})) \<sigma>''\<and> \<sigma>'' \<subseteq>\<^sub>m \<sigma>l)) 
+      \<Longrightarrow> serialize_weak (ObjRef l) \<sigma> \<sigma>l"
 apply (rule_tac obj=obj in serialize_weak_weaker_intro,simp+)
 apply (intro ballI conjI)
 apply (rule_tac x=\<sigma>l in exI)
@@ -489,7 +494,10 @@ lemma serialize_weak_serialize_one_self_ref_pre:
 by (erule serialize_weak.coinduct, auto)
 
 lemma serialize_weak_serialize_one_self_ref:
-"\<sigma> l = Some (StoredVal (ObjRef l)) \<Longrightarrow> \<sigma>' l = \<sigma> l \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l)) \<Longrightarrow>  serialize_weak (ObjRef l) \<sigma>  \<sigma>'"
+"\<sigma> l = Some (StoredVal (ObjRef l)) 
+  \<Longrightarrow> \<sigma>' l = \<sigma> l 
+  \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l)) 
+        \<Longrightarrow>  serialize_weak (ObjRef l) \<sigma>  \<sigma>'"
 by (rule serialize_weak_serialize_one_self_ref_pre, auto)
 
 
@@ -547,11 +555,11 @@ done
 
 lemma serialize_weak_remove_one_ref:
 " \<sigma>l l = Some (StoredVal (ObjRef l'))
-        \<Longrightarrow>\<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
- serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' \<Longrightarrow>
- \<sigma>l\<subseteq>\<^sub>m  \<sigma>' \<Longrightarrow>
-serialize_weak (ObjRef l') (\<sigma> |` (- {l})) \<sigma>l \<Longrightarrow>
- serialize_weak v \<sigma> \<sigma>'"
+      \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) 
+      \<Longrightarrow> serialize_weak v (\<sigma>|` (-{l})) \<sigma>'' 
+      \<Longrightarrow> \<sigma>''\<subseteq>\<^sub>m\<sigma>' \<Longrightarrow> \<sigma>l\<subseteq>\<^sub>m  \<sigma>' 
+      \<Longrightarrow>serialize_weak (ObjRef l') (\<sigma> |` (- {l})) \<sigma>l 
+            \<Longrightarrow> serialize_weak v \<sigma> \<sigma>'"
 apply (rule_tac \<sigma>l=\<sigma>l in serialize_weak_remove_one_ref_pre,(intro conjI,simp)+)
 apply (rule serialize_weak_substore_result)
 by auto
@@ -597,7 +605,9 @@ apply (case_tac x1)
 done
 
 theorem serialize_weak_serialize: 
-"Well_Formed_Store \<sigma> \<Longrightarrow>(Referenced_locations_Value v) \<subseteq> (dom \<sigma>) \<Longrightarrow> serialize_weak v \<sigma> \<sigma>'
+"Well_Formed_Store \<sigma> 
+  \<Longrightarrow>(Referenced_locations_Value v) \<subseteq> (dom \<sigma>) 
+  \<Longrightarrow> serialize_weak v \<sigma> \<sigma>'
  \<Longrightarrow> serialize v \<sigma> \<sigma>' "
 by (rule serialize_weak_serialize_pre,auto)
 
@@ -794,11 +804,11 @@ apply (drule_tac x=xa in bspec)
  apply (auto split: option.splits )
 done
 
-lemma serialize_subset: "dom (serialize_filter l \<sigma>) \<subseteq> dom \<sigma>"
+lemma serialize_filter_subset: "dom (serialize_filter l \<sigma>) \<subseteq> dom \<sigma>"
 apply (insert serialization_filter_subset, auto)
 done
 
-lemma serialization_filter_value: "(serialize_filter l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+lemma serialize_filter_value: "(serialize_filter l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
 apply (subgoal_tac "l'\<in>(serialization_filter l \<sigma> {})")
  apply (drule_tac m=\<sigma> in Map.restrict_in)
  apply force
@@ -1009,12 +1019,12 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
 (*2*)
  apply (case_tac  "serialize_filter l \<sigma> la")
   apply blast
- apply (drule serialization_filter_value)
+ apply (drule serialize_filter_value)
  apply (subgoal_tac "a=aa")
   apply clarify
   apply (case_tac aa,rename_tac obj')
   apply (case_tac obj')
-   apply (frule serialization_filter_value)
+   apply (frule serialize_filter_value)
    apply  clarsimp
    apply (subgoal_tac "serialize_filter l \<sigma> la = Some (Obj (ab, ba))")
 (*5*)
@@ -1028,7 +1038,7 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
      apply blast
     apply (rule Map_restrict_Some,force)
    apply simp
-  apply (frule serialization_filter_value)
+  apply (frule serialize_filter_value)
   apply simp
 (*3*)
   apply (subgoal_tac "la\<in>serialization_filter l \<sigma> {}")
@@ -1039,7 +1049,7 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
 (*3*)
   apply (rule Map_restrict_Some,force)
  apply force
-apply (insert serialize_subset[of \<sigma> l])
+apply (insert serialize_filter_subset[of \<sigma> l])
 apply blast
 done
 
@@ -1053,23 +1063,6 @@ apply rule
 apply (frule_tac l'=x in serialization_filter_coincide_val)
 apply (drule_tac x="{}" in spec)
 apply (auto simp: restrict_map_def)
-done
-
-lemma serialize_filter_verifies_axiomatic_serialize_1:
-    "  ((serialize_filter l' \<sigma>)  l=\<sigma>  l\<and> \<sigma>(l) = Some (Obj obj) \<and> (\<forall> v\<in> ran(fst(obj)). \<exists>\<sigma>''. (serialize v \<sigma> (serialize_filter l' \<sigma>))))
-     \<Longrightarrow> (serialize (ObjRef l) \<sigma> (serialize_filter l' \<sigma>))" 
-apply (rule serialize.intros)
-apply auto
-done
-
-lemma serialize_filter_verifies_axiomatic_serialize_2:
-    " (serialize_filter l' \<sigma>)(l) = \<sigma>(l) \<and> \<sigma>(l) = Some (StoredVal v) \<and>  (serialize v \<sigma> (serialize_filter l' \<sigma>))\<Longrightarrow> (serialize (ObjRef l) \<sigma> (serialize_filter l' \<sigma>))" 
-apply (rule serialize.intros(2))
-apply auto
-done
-lemma serialization_filter_verifies_axiomatic_def_in_L: " ( l\<in>L\<Longrightarrow> serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` L'))"
-apply (rule serialize_weak.intros(4))
-apply auto
 done
 
 
@@ -1252,19 +1245,19 @@ apply blast
 done
 
 
-section{*RMI filtering*}
+section{*Mark filtering*}
 
 
-function (sequential) RMI_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set\<Rightarrow> Location set"
+function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set\<Rightarrow> Location set"
 (*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
   where
     "
-    (RMI_filter l \<sigma> L T) = (if l\<in>L then {} else
+    (Mark_filter l \<sigma> L T) = (if l\<in>L then {} else
       (case \<sigma>(l) of
       None => {} |
-      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S)   (T\<union>(\<Union>(Referenced_locations_Value`ran(fst(obj))))))) ) 
+      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)   (T\<union>(\<Union>(Referenced_locations_Value`ran(fst(obj))))))) ) 
                 (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
-      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (RMI_filter l' \<sigma> (L\<union>{l}) T)|
+      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}) T)|
       _ \<Rightarrow> {l}))" 
 
 by auto
@@ -1295,16 +1288,16 @@ apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}")
 done
 
 
-(*function (sequential) RMI_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
+(*function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
 (*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
   where
     "
-    (RMI_filter l \<sigma> L) = (if l\<in>L then {} else
+    (Mark_filter l \<sigma> L) = (if l\<in>L then {} else
       (case \<sigma>(l) of
       None => {} |
-      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
+      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
                 (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
-      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (RMI_filter l' \<sigma> (L\<union>{l}))|
+      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}))|
       _ \<Rightarrow> {l}))" 
 by auto
 termination
@@ -1338,9 +1331,9 @@ apply (drule finite_ran_obj)
 apply (auto simp: Referenced_locations_Value_def split: Value.splits)
 done
 
-abbreviation serialize_RMI:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
+abbreviation serialize_Mark:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
 where
-"serialize_RMI l \<sigma> \<equiv>  \<sigma> |` RMI_filter l \<sigma> {} {}" 
+"serialize_Mark l \<sigma> \<equiv>  \<sigma> |` Mark_filter l \<sigma> {} {}" 
 
 lemma SF_fold_to_Union[rule_format]: "\<forall>LS . ((distinct fieldlist)\<longrightarrow>(\<exists> F .
  (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS) 
@@ -1405,15 +1398,15 @@ done
 lemma SFI2SG1: "
        (\<And>l \<sigma> L a b S T.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (RMI_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
-                     P ({l} \<union> \<Union>((\<lambda>x. RMI_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L T) \<Longrightarrow>
-       (\<And>l \<sigma> L l' T. l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (RMI_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow> P ({l} \<union> RMI_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
+                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Mark_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
+                     P ({l} \<union> \<Union>((\<lambda>x. Mark_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L T) \<Longrightarrow>
+       (\<And>l \<sigma> L l' T. l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Mark_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow> P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
        (\<And>x2 prod x xa.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some x2 \<Longrightarrow>
                      x2 = Obj prod \<Longrightarrow>
                      x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-                     P (RMI_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-       (\<And>l \<sigma> L  T. P {} l \<sigma> L T) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (RMI_filter l \<sigma> L T) l \<sigma> L T
+                     P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
+       (\<And>l \<sigma> L  T. P {} l \<sigma> L T) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
 "
 apply (case_tac prod,rename_tac f C)
 apply clarsimp
@@ -1438,7 +1431,7 @@ apply (subgoal_tac
 (*2*)
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>(Referenced_locations_Value ` (ran (f)))))")
-  apply (drule_tac SF=RMI_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>UNION (ran f) Referenced_locations_Value" in SF_fold_to_Union,simp)
+  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>UNION (ran f) Referenced_locations_Value" in SF_fold_to_Union,simp)
 (*SF_fold_to_Union[rule_format]: "((distinct fieldlist)\<longrightarrow>(\<exists> F . (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS)  = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)))))"*)
   apply clarsimp
 (*3*)
@@ -1467,32 +1460,32 @@ lemma  SFI2SG2:"(\<And>x2 Value nat.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
            x2 = StoredVal Value \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> 
-           P (RMI_filter nat \<sigma> (L \<union> {l}) T) nat \<sigma> (L \<union> {l}) T) \<Longrightarrow>
+           P (Mark_filter nat \<sigma> (L \<union> {l}) T) nat \<sigma> (L \<union> {l}) T) \<Longrightarrow>
      (\<And>l'. l \<notin> L \<Longrightarrow>
               \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
-              P (RMI_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow>
-              P ({l} \<union> RMI_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
-  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L T\<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (RMI_filter l \<sigma> L T) l \<sigma> L T
+              P (Mark_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow>
+              P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
+  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L T\<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
   "
 apply clarsimp
 done
 
-lemma RMI_filter_induct_1: "   
+lemma Mark_filter_induct_1: "   
 (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L V T.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L a b S T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
            (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
-                          P (RMI_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
                                      (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) \<Longrightarrow>
-            P ({l}\<union>(\<Union> ((\<lambda> x. RMI_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
+            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L T)  \<Longrightarrow>
 (\<And>l \<sigma> L l' T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
-           (P (RMI_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
-           (P ({l}\<union>(RMI_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
-   P (RMI_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
-apply (rule RMI_filter.induct)
+           (P (Mark_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
+           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
+   P (Mark_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
+apply (rule Mark_filter.induct)
 apply (case_tac "\<sigma> l")
  apply (simp)
 (*1*)
@@ -1505,36 +1498,36 @@ done
 
 
 
-lemma RMI_filterD_L:"x\<in>RMI_filter l \<sigma> L T\<Longrightarrow> l\<notin>L"
+lemma Mark_filterD_L:"x\<in>Mark_filter l \<sigma> L T\<Longrightarrow> l\<notin>L"
 apply force
 done
 
-lemma RMI_filterD_L_contrapos:"l\<notin>RMI_filter l \<sigma> L T \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
+lemma Mark_filterD_L_contrapos:"l\<notin>Mark_filter l \<sigma> L T \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (clarsimp,rename_tac f C)
 apply (subgoal_tac "l\<in>{l}",drule_tac F="\<lambda> l' S . (if l' = l \<or> l' \<in> L \<or> l' \<in> S then {}
                                   else case \<sigma> l' of None \<Rightarrow> {}
                                                  | Some (Obj obj) \<Rightarrow>
-                                                     fold (\<lambda>l'a Sa. Sa \<union> RMI_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value \<union> \<Union>(Referenced_locations_Value ` ran (fst obj))))
+                                                     fold (\<lambda>l'a Sa. Sa \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value \<union> \<Union>(Referenced_locations_Value ` ran (fst obj))))
                                                       (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {l'}
-                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> RMI_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value))" in AuxiliaryFunctions.foldr_Un_init
+                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value))" in AuxiliaryFunctions.foldr_Un_init
        ,blast)
 apply blast
 apply (simp split: Value.splits Storable.splits split_if_asm )
 done
 
-lemma RMI_filter_no_l[simp]:"l\<notin>RMI_filter l \<sigma> L T= (l\<in>L \<or> \<sigma> l = None)"
+lemma Mark_filter_no_l[simp]:"l\<notin>Mark_filter l \<sigma> L T= (l\<in>L \<or> \<sigma> l = None)"
 apply rule
-apply (rule RMI_filterD_L_contrapos,simp)
+apply (rule Mark_filterD_L_contrapos,simp)
 apply auto
 done
 
-lemma RMI_filterD_: "x\<in>RMI_filter l \<sigma> L T\<Longrightarrow> 
+lemma Mark_filterD_: "x\<in>Mark_filter l \<sigma> L T\<Longrightarrow> 
                                    ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields)))))) 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields)))))) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>RMI_filter l' \<sigma> (L\<union>{l}) T)))"
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)))"
 apply (case_tac "\<sigma> l")
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (case_tac "x=l",force)
@@ -1543,12 +1536,12 @@ apply (force split: option.splits Storable.splits split_if_asm Value.splits)
 apply (force split: Value.splits split_if_asm)
 done
 
-lemma RMI_filterI_: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
+lemma Mark_filterI_: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>RMI_filter l' \<sigma> (L\<union>{l}) T)) ) 
-                                   \<Longrightarrow> x\<in>RMI_filter l \<sigma> L T"
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)) ) 
+                                   \<Longrightarrow> x\<in>Mark_filter l \<sigma> L T"
 apply (elim disjE)
 apply (clarsimp split: Storable.splits split_if_asm)
 apply (clarsimp split: Storable.splits split_if_asm )
@@ -1559,30 +1552,30 @@ apply (simp split: Value.splits)
 apply force
 done
 
-lemma RMI_filter_def2: "x\<in>RMI_filter l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
+lemma Mark_filter_def2: "x\<in>Mark_filter l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>RMI_filter l' \<sigma> (L\<union>{l}) T)) )) 
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)) )) 
                        "
 apply rule 
-apply (frule RMI_filterD_, drule RMI_filterD_L,blast)
-apply (rule RMI_filterI_,blast,blast)
+apply (frule Mark_filterD_, drule Mark_filterD_L,blast)
+apply (rule Mark_filterI_,blast,blast)
 done
 
-declare RMI_filter.simps[simp del]
+declare Mark_filter.simps[simp del]
 
-lemma RMI_filter_empty[simp]: "(RMI_filter l \<sigma> L T ={}) = (l\<in>L\<or> \<sigma> l = None)"
+lemma Mark_filter_empty[simp]: "(Mark_filter l \<sigma> L T ={}) = (l\<in>L\<or> \<sigma> l = None)"
 apply rule
-apply (case_tac "l\<in>(RMI_filter l \<sigma> L T)")
+apply (case_tac "l\<in>(Mark_filter l \<sigma> L T)")
 apply force
-apply (drule RMI_filterD_L_contrapos)
+apply (drule Mark_filterD_L_contrapos)
 apply simp
-apply (clarsimp simp: RMI_filter.simps)
+apply (clarsimp simp: Mark_filter.simps)
 done
 
-lemma serialize_value_RMI: "(serialize_RMI l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
-apply (subgoal_tac "l'\<in>(RMI_filter l \<sigma> {} {})")
+lemma serialize_value_Mark: "(serialize_Mark l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+apply (subgoal_tac "l'\<in>(Mark_filter l \<sigma> {} {})")
  apply (drule_tac m=\<sigma> in Map.restrict_in)
  apply force
 apply (rule Map_restrict_Some,blast)
@@ -1600,18 +1593,18 @@ lemma SFI3SG1: "
            locationlist = sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
            locationlist \<noteq> [] \<Longrightarrow>
            S = (\<lambda>n. if n < length locationlist then 
-                  (fold (\<lambda>l' S.  (S\<union>(RMI_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(a))))) ) 
+                  (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(a))))) ) 
                                         (take n locationlist) ({l})) else {}) \<Longrightarrow>
            \<forall>i<length locationlist.
-              P (RMI_filter (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
-           P ({l} \<union> \<Union>((\<lambda>x. RMI_filter (locationlist!x) \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` {0..length(locationlist) - 1})) l \<sigma> L T) \<Longrightarrow>
+              P (Mark_filter (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
+           P ({l} \<union> \<Union>((\<lambda>x. Mark_filter (locationlist!x) \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` {0..length(locationlist) - 1})) l \<sigma> L T) \<Longrightarrow>
        (\<And>x2 prod x xa.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
            x2 = Obj prod \<Longrightarrow>
            x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-           P (RMI_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-       \<sigma> l = Some (Obj (f,C)) \<Longrightarrow> P (RMI_filter l \<sigma> L T) l \<sigma> L T
+           P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
+       \<sigma> l = Some (Obj (f,C)) \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
 "
 apply clarsimp
 apply (subgoal_tac 
@@ -1638,21 +1631,21 @@ apply (subgoal_tac
  apply (drule_tac x="Obj(f,C)" in meta_spec)
  apply (drule_tac x=f in meta_spec)
  apply (drule_tac x=C in meta_spec)
- apply (simp(no_asm) add: RMI_filter.simps)
+ apply (simp(no_asm) add: Mark_filter.simps)
 apply clarsimp
 (*2*)
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>(Referenced_locations_Value ` (ran (f)))))")
-  apply (drule_tac SF=RMI_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>(\<Union>x\<in>ran f. Referenced_locations_Value x)" in SF_fold_to_Union_what_F2,clarsimp)
+  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>(\<Union>x\<in>ran f. Referenced_locations_Value x)" in SF_fold_to_Union_what_F2,clarsimp)
 (*3*)
   apply (drule_tac x=" (\<lambda>n. if n < length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))
-                 then fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f))) (take n (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))) {l} else {}) "in meta_spec)
+                 then fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f))) (take n (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))) {l} else {}) "in meta_spec)
   apply (rotate_tac -1,drule_tac x="T" in meta_spec)
   apply (rotate_tac -1,drule_tac x="sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)" in meta_spec)
    apply (simp,rotate_tac -1,erule meta_impE)
    apply clarsimp
    apply (drule_tac x="sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)!i" in meta_spec)
-      apply (rotate_tac -1,drule_tac x="fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
+      apply (rotate_tac -1,drule_tac x="fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
                                 (take i (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))) {l}" in meta_spec)
       apply (erule meta_impE)
       apply force
@@ -1661,15 +1654,15 @@ apply clarsimp
 (*3*)
    apply (subgoal_tac 
 "(\<Union>x\<in>{0..length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)) - 1}.
-                    RMI_filter (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x) ! x) \<sigma>
+                    Mark_filter (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x) ! x) \<sigma>
                      (insert l (L \<union> (if x < length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))
-                                      then fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f)))
+                                      then fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f)))
                                             (take x (sorted_list_of_set (UNION (ran f) Referenced_locations_Value))) {l}
                                       else {})))
                      (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
 =(\<Union>l'\<in>{n'. n' < length (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))}.
-                    RMI_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! l') \<sigma>
-                     (insert l (L \<union> fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
+                    Mark_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! l') \<sigma>
+                     (insert l (L \<union> fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
                                       (take l' (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))) {l}))
                      (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
 ")
@@ -1697,10 +1690,10 @@ apply clarsimp
    apply force
    apply
 (*   apply force
-   apply (subgoal_tac "(\<Union>x\<in>ran f. \<Union>x\<in>Referenced_locations_Value x. RMI_filter x \<sigma> (insert l (L \<union> F x)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
+   apply (subgoal_tac "(\<Union>x\<in>ran f. \<Union>x\<in>Referenced_locations_Value x. Mark_filter x \<sigma> (insert l (L \<union> F x)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
 = 
 (\<Union>m\<in>{n'. n' < length (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))}.
-                         RMI_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! m) \<sigma> (insert l (L \<union> F m)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
+                         Mark_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! m) \<sigma> (insert l (L \<union> F m)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
 ")
    apply force
    apply (rule UNION_UNION_eqI)
@@ -1739,26 +1732,26 @@ apply force
 done
 *)
 *)*)*)
-lemma RMI_filter_induct_2: "   
+lemma Mark_filter_induct_2: "   
 (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L V T.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L a b S T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
         let locationlist = sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(a))) in
-           S = (\<lambda> n . (if (n< length locationlist) then (L\<union>{l}\<union> (\<Union>k\<in>{n'. n'<n}. (RMI_filter ((locationlist)!k) \<sigma> (L\<union>{l}\<union>S k) T))) else {})) \<Longrightarrow>
+           S = (\<lambda> n . (if (n< length locationlist) then (L\<union>{l}\<union> (\<Union>k\<in>{n'. n'<n}. (Mark_filter ((locationlist)!k) \<sigma> (L\<union>{l}\<union>S k) T))) else {})) \<Longrightarrow>
            (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
-                          P (RMI_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
                                      (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) \<Longrightarrow>
-            P ({l}\<union>(\<Union> ((\<lambda> x. RMI_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
+            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L T)  \<Longrightarrow>
 (\<And>l \<sigma> L l' T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
-           (P (RMI_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
-           (P ({l}\<union>(RMI_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
-   P (RMI_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
-apply (rule RMI_filter.induct)
+           (P (Mark_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
+           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
+   P (Mark_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
+apply (rule Mark_filter.induct)
 apply (case_tac "\<sigma> l")
- apply (simp add: RMI_filter.simps)
+ apply (simp add: Mark_filter.simps)
 (*1*)
 apply (case_tac a)
 
@@ -1770,19 +1763,19 @@ done
 
 
 
-lemma T_is_accessory_pre: "x\<in>RMI_filter l \<sigma> L T \<longrightarrow> x\<in>RMI_filter l \<sigma> L (T\<union>T')"
-apply (rule_tac P="\<lambda> S l \<sigma> L T. x\<in>S \<longrightarrow>x\<in> RMI_filter l \<sigma> L (T\<union>T')" in RMI_filter_induct_1)
+lemma T_is_accessory_pre: "x\<in>Mark_filter l \<sigma> L T \<longrightarrow> x\<in>Mark_filter l \<sigma> L (T\<union>T')"
+apply (rule_tac P="\<lambda> S l \<sigma> L T. x\<in>S \<longrightarrow>x\<in> Mark_filter l \<sigma> L (T\<union>T')" in Mark_filter_induct_1)
 apply auto
-apply (erule RMI_filterI_,force)
-apply (erule RMI_filterI_,force)
-apply (erule RMI_filterI_,simp)
+apply (erule Mark_filterI_,force)
+apply (erule Mark_filterI_,force)
+apply (erule Mark_filterI_,simp)
 apply (drule_tac x=xa in bspec,simp)
 apply (drule_tac x=xaa in bspec,simp)
 apply clarsimp
 S too imprecise
 
 lemma serialization_filter_WF_1step_obj[rule_format]: 
-  "l\<in>RMI_filter l'' \<sigma> L T\<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some (ObjRef l') 
+  "l\<in>Mark_filter l'' \<sigma> L T\<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some (ObjRef l') 
         \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  \<exists> t\<in>T. l'\<in>serialization_filter l'' \<sigma> L {} \<or>l'\<in>L\<or>l'\<in>serialization_filter l'' \<sigma> L T"
 apply (rule_tac P= 
 "\<lambda> S l'' \<sigma> L. l\<in>S \<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some ( ObjRef l')   \<longrightarrow>Well_Formed_Store \<sigma>
@@ -1818,7 +1811,7 @@ apply auto
 done
 
 
-lemma Serialization_WF: "Well_Formed_Store \<sigma> \<Longrightarrow> Well_Formed_Store (serialize_RMI l \<sigma>)"
+lemma Serialization_WF: "Well_Formed_Store \<sigma> \<Longrightarrow> Well_Formed_Store (serialize_Mark l \<sigma>)"
 apply (unfold Well_Formed_Store_def)
 apply (intro ballI)
 apply (fold Well_Formed_Store_def)
@@ -1828,7 +1821,7 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
  apply rule
  apply (unfold Referenced_locations_Location_def)
 (*2*)
- apply (case_tac  "serialize_RMI l \<sigma> la")
+ apply (case_tac  "serialize_Mark l \<sigma> la")
   apply blast
  apply (drule serialize_value)
  apply (subgoal_tac "a=aa")
@@ -1859,38 +1852,38 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
 (*3*)
   apply (rule Map_restrict_Some,force)
  apply force
-apply (insert serialize_subset[of \<sigma> l])
+apply (insert serialize_filter_subset[of \<sigma> l])
 apply blast
 done
 
 
-lemma RMI_filter_union: (RMI_filter l' \<sigma> L\<union>L')\<union>L' = (RMI_filter l' \<sigma> L\<union>L')
+lemma Mark_filter_union: (Mark_filter l' \<sigma> L\<union>L')\<union>L' = (Mark_filter l' \<sigma> L\<union>L')
 
-lemma fold_union_init[rule_format]: "\<forall> L'' . fold (\<lambda>l' S. S \<union> (RMI_filter l' \<sigma> S)) list (L \<union> L'') = (fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> S) list L) \<union> L''"
+lemma fold_union_init[rule_format]: "\<forall> L'' . fold (\<lambda>l' S. S \<union> (Mark_filter l' \<sigma> S)) list (L \<union> L'') = (fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> S) list L) \<union> L''"
 apply (induct_tac list)
 apply force
 apply clarsimp
-apply (drule_tac x="L''\<union>L'' \<union> RMI_filter a \<sigma> (L \<union> L'')" in spec) 
+apply (drule_tac x="L''\<union>L'' \<union> Mark_filter a \<sigma> (L \<union> L'')" in spec) 
 apply simp
 apply (subgoal_tac "(L'' \<union> F a (L \<union> L'')) =   (L'' \<union> (F a (L \<union> L'')))")
 apply simp
 apply blast
 apply blast
 done
-lemma "\<forall> L' . l \<in> fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L' \<union> S)) list L = (l\<in>L\<or> 
-            ( \<exists> i<length list . let S =  fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L' \<union> S)) (take i list) L  in  (l\<in>RMI_filter (list!i) \<sigma> (L' \<union> S) \<and> l\<notin>S)))"
+lemma "\<forall> L' . l \<in> fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list L = (l\<in>L\<or> 
+            ( \<exists> i<length list . let S =  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) (take i list) L  in  (l\<in>Mark_filter (list!i) \<sigma> (L' \<union> S) \<and> l\<notin>S)))"
 apply (induct_tac list)
 apply force
 apply (clarsimp)
-apply (subgoal_tac "fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L' \<union> S)) list (L \<union> RMI_filter a \<sigma> (L' \<union> L)) = fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (L' \<union> S)) list L \<union> RMI_filter a \<sigma> (L' \<union> L)")
+apply (subgoal_tac "fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list (L \<union> Mark_filter a \<sigma> (L' \<union> L)) = fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list L \<union> Mark_filter a \<sigma> (L' \<union> L)")
 defer
-apply (rule_tac list=list and L''="RMI_filter a \<sigma> (L' \<union> L)"  in fold_union_init)
+apply (rule_tac list=list and L''="Mark_filter a \<sigma> (L' \<union> L)"  in fold_union_init)
 apply clarsimp
 apply (case_tac "l\<in>L")
 apply force
 apply clarsimp
 apply rule
-apply (case_tac "l \<in> RMI_filter a \<sigma> (L' \<union> L)")
+apply (case_tac "l \<in> Mark_filter a \<sigma> (L' \<union> L)")
 apply clarsimp
 apply (rule_tac x=0 in exI)
 apply clarsimp
@@ -1899,23 +1892,23 @@ apply (clarsimp simp: Let_def)
 apply (rule_tac x="Suc i" in exI)
 apply (clarsimp simp: Let_def)
 
-lemma " \<forall> x . l \<in> RMI_filter l' \<sigma> L \<longrightarrow>
-                    x \<in> RMI_filter l \<sigma> L \<longrightarrow>x \<in> RMI_filter l' \<sigma> L"
-apply (rule_tac P = " \<lambda> l' \<sigma> L .\<forall> x .l \<in> RMI_filter l' \<sigma> L \<longrightarrow>
-                    x \<in> RMI_filter l \<sigma> L \<longrightarrow>x \<in> RMI_filter l' \<sigma> L" in RMI_filter.induct)
+lemma " \<forall> x . l \<in> Mark_filter l' \<sigma> L \<longrightarrow>
+                    x \<in> Mark_filter l \<sigma> L \<longrightarrow>x \<in> Mark_filter l' \<sigma> L"
+apply (rule_tac P = " \<lambda> l' \<sigma> L .\<forall> x .l \<in> Mark_filter l' \<sigma> L \<longrightarrow>
+                    x \<in> Mark_filter l \<sigma> L \<longrightarrow>x \<in> Mark_filter l' \<sigma> L" in Mark_filter.induct)
 apply (case_tac "l=la")
 apply clarsimp
 apply clarsimp
-apply (frule RMI_filterD_L)
-apply (frule RMI_filterD_L)
-apply (drule RMI_filterD_,clarsimp)
+apply (frule Mark_filterD_L)
+apply (frule Mark_filterD_L)
+apply (drule Mark_filterD_,clarsimp)
 apply (elim disjE)
 apply clarsimp
-apply(thin_tac "(\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> l \<in> RMI_filter nat \<sigma> (insert la L) \<longrightarrow> (\<forall>x. x \<in> RMI_filter l \<sigma> (insert la L) \<longrightarrow> x \<in> RMI_filter nat \<sigma> (insert la L))) ")
+apply(thin_tac "(\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> l \<in> Mark_filter nat \<sigma> (insert la L) \<longrightarrow> (\<forall>x. x \<in> Mark_filter l \<sigma> (insert la L) \<longrightarrow> x \<in> Mark_filter nat \<sigma> (insert la L))) ")
 apply (drule_tac x= "Obj(fields,C)" in meta_spec)
 apply (drule_tac x= "fields" in meta_spec)
 apply (drule_tac x= C in meta_spec)
-apply (rule RMI_filterI_)
+apply (rule Mark_filterI_)
 apply clarsimp
 apply clarsimp
 
@@ -1925,7 +1918,7 @@ DO NOT DO FOLD TO UNION FIND BETTER
 
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>x\<in>ran fields. Referenced_locations_Value x))")
-apply (drule_tac SF=RMI_filter and \<sigma> = \<sigma> and LS ="{la}" and l=la and L="L" in SF_fold_to_Union)
+apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{la}" and l=la and L="L" in SF_fold_to_Union)
 apply clarsimp
 apply (drule_tac x= xa in meta_spec)
 apply (drule_tac x= "F xa" in meta_spec)
@@ -1935,25 +1928,25 @@ apply (drule_tac x=x in spec)
 apply clarsimp
 apply (erule disjE,simp)
 
-lemma RMI_filter_induct_double_union[rule_format]: "   
-   \<forall>  l'. ( RMI_filter l \<sigma> L \<subseteq> RMI_filter l' \<sigma> L \<union> RMI_filter l \<sigma> (L\<union>RMI_filter l' \<sigma> L))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall>  l'. ( RMI_filter l \<sigma> L \<subseteq> RMI_filter l' \<sigma> L \<union> RMI_filter l \<sigma> (L\<union>RMI_filter l' \<sigma> L))" in RMI_filter.induct)
+lemma Mark_filter_induct_double_union[rule_format]: "   
+   \<forall>  l'. ( Mark_filter l \<sigma> L \<subseteq> Mark_filter l' \<sigma> L \<union> Mark_filter l \<sigma> (L\<union>Mark_filter l' \<sigma> L))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall>  l'. ( Mark_filter l \<sigma> L \<subseteq> Mark_filter l' \<sigma> L \<union> Mark_filter l \<sigma> (L\<union>Mark_filter l' \<sigma> L))" in Mark_filter.induct)
 apply clarsimp
 apply (erule contrapos_np)
-apply (frule RMI_filterD_L)
-apply (frule RMI_filterD_,simp)
+apply (frule Mark_filterD_L)
+apply (frule Mark_filterD_,simp)
 apply (elim disjE)
 apply clarsimp
-apply(thin_tac "       (\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> \<forall>l'. RMI_filter nat \<sigma> (insert l L) \<subseteq> RMI_filter l' \<sigma> (insert l L) \<union> RMI_filter nat \<sigma> (insert l (L \<union> RMI_filter l' \<sigma> (insert l L)))) ")
+apply(thin_tac "       (\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> \<forall>l'. Mark_filter nat \<sigma> (insert l L) \<subseteq> Mark_filter l' \<sigma> (insert l L) \<union> Mark_filter nat \<sigma> (insert l (L \<union> Mark_filter l' \<sigma> (insert l L)))) ")
 apply (drule_tac x= "Obj(fields,C)" in meta_spec)
 apply (drule_tac x= "fields" in meta_spec)
 apply (drule_tac x= C in meta_spec)
 apply clarsimp
-apply (rule RMI_filterI_)
+apply (rule Mark_filterI_)
 apply clarsimp
 
 
-apply (subgoal_tac "\<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> RMI_filter l \<sigma> (L \<union> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply (erule Set.subset_trans,simp)
 apply blast
 (*1*)
@@ -1975,18 +1968,18 @@ apply (drule_tac x= S in spec)
 apply (drule_tac x= I in spec)
 
 
-lemma RMI_filter_induct_double[rule_format]: "   
-   \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{RMI_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(RMI_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(RMI_filter l \<sigma> (L\<union>S'))))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{RMI_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(RMI_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(RMI_filter l \<sigma> (L\<union>S'))))" in  RMI_filter.induct)
+lemma Mark_filter_induct_double[rule_format]: "   
+   \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Mark_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Mark_filter l \<sigma> (L\<union>S'))))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Mark_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Mark_filter l \<sigma> (L\<union>S'))))" in  Mark_filter.induct)
 apply clarsimp
 apply rule
-apply (subgoal_tac "\<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> RMI_filter l \<sigma> (L \<union> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply (erule Set.subset_trans,simp)
 apply blast
 (*1*)
 apply rule
-apply (frule RMI_filterD_L)
-apply (frule RMI_filterD_,simp)
+apply (frule Mark_filterD_L)
+apply (frule Mark_filterD_,simp)
 apply (elim disjE)
 defer
 apply simp
@@ -2006,63 +1999,63 @@ apply (drule_tac x= I in spec)
 apply (drule_tac x= ll in spec)
 apply (drule_tac x= LL in spec)
 apply simp
-apply (subgoal_tac "x\<in>\<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<or>x\<in>RMI_filter l' \<sigma> (insert l (L \<union> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I}))")
-apply(case_tac "x \<in> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I}")
+apply (subgoal_tac "x\<in>\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<or>x\<in>Mark_filter l' \<sigma> (insert l (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}))")
+apply(case_tac "x \<in> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}")
 apply (blast)
 apply clarsimp
-apply (subgoal_tac "x \<in> RMI_filter l \<sigma> (L \<union> \<Union>{RMI_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "x \<in> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply simp
-apply (rule RMI_filterI_)
+apply (rule Mark_filterI_)
 apply clarsimp
-apply(subgoal_tac "RMI_filter l \<sigma> (L \<union> L' \<union> S) ={}")
+apply(subgoal_tac "Mark_filter l \<sigma> (L \<union> L' \<union> S) ={}")
 apply blast
 apply(subgoal_tac "l\<in>(L \<union> L' \<union> S)")
-apply(thin_tac "x \<in> RMI_filter l \<sigma> (L \<union> L' \<union> S)")
+apply(thin_tac "x \<in> Mark_filter l \<sigma> (L \<union> L' \<union> S)")
 apply clarsimp
 apply(subgoal_tac "l\<in>S")
 apply blast
 apply (drule_tac c=l in Set.subsetD,simp)
-apply (rule RMI_filterI_) 
- apply (simp (no_asm) add: RMI_filter.simps)
+apply (rule Mark_filterI_) 
+ apply (simp (no_asm) add: Mark_filter.simps)
 (*1*)
 apply (case_tac a, case_tac prod)
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply (rule)
 apply (drule Set.Un_mono ,blast,simp)
 apply (thin_tac "(\<And>x2 Value nat. ?P x2 Value nat\<Longrightarrow>?Q x2 Value nat \<Longrightarrow>?R x2 Value nat\<Longrightarrow>?U x2 Value nat\<Longrightarrow>?T x2 Value nat)")
 apply (drule_tac x="Obj (aaa, ba)" in meta_spec)
 apply (drule_tac x=aaa in meta_spec)
 apply (drule_tac x=ba in meta_spec)
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply (clarsimp)
 apply (case_tac "l\<in>L",simp)
 apply (case_tac "l\<in>L'",simp)
 apply (case_tac "l\<in>S",simp)
-apply (clarsimp simp del: RMI_filter.simps split: split_if_asm)
+apply (clarsimp simp del: Mark_filter.simps split: split_if_asm)
 apply simp
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>x\<in>ran aaa. Referenced_locations_Value x))")
-  apply (drule_tac SF=RMI_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L="L\<union>L'\<union>S" in SF_fold_to_Union,simp)
+  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L="L\<union>L'\<union>S" in SF_fold_to_Union,simp)
 apply (clarsimp)
 apply (case_tac "x=l",simp)
-apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow>  fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
-                                                                           | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
+apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow>  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
+                                                                           | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
 apply simp
 apply (rule_tac x=i in exI)
 apply simp
-apply (clarsimp simp del: RMI_filter.simps )
-apply (subgoal_tac "l'\<in>LL i \<or>l'\<in>RMI_filter (ll i) \<sigma> (LL i)") (* IF WELL FORMEDNESS IS PROVEN*)
+apply (clarsimp simp del: Mark_filter.simps )
+apply (subgoal_tac "l'\<in>LL i \<or>l'\<in>Mark_filter (ll i) \<sigma> (LL i)") (* IF WELL FORMEDNESS IS PROVEN*)
 apply (elim disjE)
-apply (subgoal_tac "l'\<in>RMI_filter l \<sigma> (L\<union> \<Union>{RMI_filter (ll i) \<sigma> (LL i) | i . i\<in> I})")
+apply (subgoal_tac "l'\<in>Mark_filter l \<sigma> (L\<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})")
 apply (clarsimp  split: split_if_asm)
 apply (drule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {}        
-| Some (Obj obj) \<Rightarrow>fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}                                                
-| Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i}))" in spec)
+| Some (Obj obj) \<Rightarrow>fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}                                                
+| Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in spec)
 apply simp
 apply (drule_tac x= i in spec)
 apply simp
 apply (simp (no_asm))
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply simp
 apply (drule_tac x= i in spec)
 apply simp
@@ -2076,9 +2069,9 @@ apply clarsimp
 
 apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {}
                                                                                                                  | Some (Obj obj) \<Rightarrow>
-  fold (\<lambda>l' S. S \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
-                                                                                                                 | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> RMI_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
-apply (clarsimp simp del: RMI_filter.simps )
+  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
+                                                                                                                 | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
+apply (clarsimp simp del: Mark_filter.simps )
 apply (rule_tac x=i in exI)
 apply simp
 
@@ -2086,7 +2079,7 @@ apply clarsimp
 apply (drule_tac x="{}" in meta_pec) (*? ? ?*)
 apply (case_tac "l\<in>L")
 apply simp
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
  apply (clarsimp split: option.splits Storable.splits)
 apply (clarsimp split: Value.splits)
 apply bast
@@ -2096,33 +2089,33 @@ sorry
 (*induction useful\<Or>? (\<And>l \<sigma> L a b S L'.
         l \<notin> L \<Longrightarrow> l \<notin> L' \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
           (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). (\<forall> L'. 
-                          (RMI_filter x \<sigma> (L\<union>L'\<union>{l}\<union>(S x))) \<subseteq>(RMI_filter x \<sigma> (L\<union>{l}\<union>(S x))))) \<Longrightarrow>
-            ({l}\<union>(\<Union> ((\<lambda> x. RMI_filter x \<sigma> (L\<union>L' \<union> {l}\<union>S x))` 
-                                             \<Union>(Referenced_locations_Value`ran(a)))))\<subseteq> ({l}\<union>(\<Union> ((\<lambda> x. RMI_filter x \<sigma> ((L) \<union> {l}\<union>S x))` 
+                          (Mark_filter x \<sigma> (L\<union>L'\<union>{l}\<union>(S x))) \<subseteq>(Mark_filter x \<sigma> (L\<union>{l}\<union>(S x))))) \<Longrightarrow>
+            ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L\<union>L' \<union> {l}\<union>S x))` 
+                                             \<Union>(Referenced_locations_Value`ran(a)))))\<subseteq> ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> ((L) \<union> {l}\<union>S x))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) )  \<Longrightarrow>
 (\<And>l \<sigma> L l' L'.
         l \<notin> L\<Longrightarrow> l\<notin> L' \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
-           \<forall> L'. (RMI_filter l' \<sigma> (L\<union>L'\<union>{l}))\<subseteq> ( (RMI_filter l' \<sigma> (L\<union>{l})) )\<Longrightarrow>
-           (({l}\<union>(RMI_filter l' \<sigma> (L\<union>L'\<union>{l})))\<subseteq>  ({l}\<union>(RMI_filter l' \<sigma> ((L)\<union>{l}))) ))         \<Longrightarrow>   
+           \<forall> L'. (Mark_filter l' \<sigma> (L\<union>L'\<union>{l}))\<subseteq> ( (Mark_filter l' \<sigma> (L\<union>{l})) )\<Longrightarrow>
+           (({l}\<union>(Mark_filter l' \<sigma> (L\<union>L'\<union>{l})))\<subseteq>  ({l}\<union>(Mark_filter l' \<sigma> ((L)\<union>{l}))) ))         \<Longrightarrow>   
 *)
 lemma " S \<subseteq> S' \<Longrightarrow> \<sigma> l = Some (Obj (aaa, ba)) \<Longrightarrow>
                    (\<And>x xa. l \<notin> L \<Longrightarrow> x \<in> set (sorted_list_of_set (\<Union>x\<in>ran aaa. Referenced_locations_Value x)) \<Longrightarrow>
-                                      \<forall>L' S S'. S \<subseteq> S' \<longrightarrow> S \<subseteq> S' \<union> RMI_filter x \<sigma> (insert l (L \<union> xa \<union> S')) \<and>
-                                                            RMI_filter x \<sigma> (insert l (L \<union> xa \<union> L' \<union> S)) \<subseteq> S' \<union> RMI_filter x \<sigma> (insert l (L \<union> xa \<union> S'))) \<Longrightarrow>
-                   x \<in> RMI_filter l \<sigma> (L \<union> L' \<union> S) \<Longrightarrow> x \<notin> RMI_filter l \<sigma> (L \<union> S') \<Longrightarrow> x \<in> S'"
+                                      \<forall>L' S S'. S \<subseteq> S' \<longrightarrow> S \<subseteq> S' \<union> Mark_filter x \<sigma> (insert l (L \<union> xa \<union> S')) \<and>
+                                                            Mark_filter x \<sigma> (insert l (L \<union> xa \<union> L' \<union> S)) \<subseteq> S' \<union> Mark_filter x \<sigma> (insert l (L \<union> xa \<union> S'))) \<Longrightarrow>
+                   x \<in> Mark_filter l \<sigma> (L \<union> L' \<union> S) \<Longrightarrow> x \<notin> Mark_filter l \<sigma> (L \<union> S') \<Longrightarrow> x \<in> S'"
 apply(induct_tac list)
 apply force
-apply (clarsimp simp del: RMI_filter.simps)
-apply (rotate_tac -1,frule_tac x="(La \<union> RMI_filter a \<sigma> (L  \<union> La))" in spec)
-apply (drule_tac x="(La \<union> RMI_filter a \<sigma> (L\<union>L'  \<union> La))" in spec)
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
+apply (rotate_tac -1,frule_tac x="(La \<union> Mark_filter a \<sigma> (L  \<union> La))" in spec)
+apply (drule_tac x="(La \<union> Mark_filter a \<sigma> (L\<union>L'  \<union> La))" in spec)
+apply (clarsimp simp del: Mark_filter.simps)
 apply auto
 apply (case_tac "\<sigma> l'")
 sorry
-lemma RMI_filter_induct_double[rule_format]: "   
-   \<forall> L'. (RMI_filter l \<sigma> (L\<union>L'))\<subseteq> (RMI_filter l \<sigma> (L))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L'. (RMI_filter l \<sigma> (L\<union>L'))\<subseteq> (RMI_filter l \<sigma> (L))" in  RMI_filter.induct)
-apply (clarsimp simp del: RMI_filter.simps)
+lemma Mark_filter_induct_double[rule_format]: "   
+   \<forall> L'. (Mark_filter l \<sigma> (L\<union>L'))\<subseteq> (Mark_filter l \<sigma> (L))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L'. (Mark_filter l \<sigma> (L\<union>L'))\<subseteq> (Mark_filter l \<sigma> (L))" in  Mark_filter.induct)
+apply (clarsimp simp del: Mark_filter.simps)
 apply (case_tac "\<sigma> l")
  apply (clarsimp split: split_if_asm)
 (*1*)
@@ -2151,22 +2144,22 @@ apply (insert l_in_fold_union_selection [of l F list "{}"])
 apply auto
 done
 
-lemma Serialization_2_excluded_set_subset: "\<forall> L . L\<subseteq>L' \<longrightarrow> RMI_filter l \<sigma> L' \<subseteq> RMI_filter l \<sigma> L"
-apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> RMI_filter l \<sigma> L)" in   RMI_filter_induct_1)
+lemma Serialization_2_excluded_set_subset: "\<forall> L . L\<subseteq>L' \<longrightarrow> Mark_filter l \<sigma> L' \<subseteq> Mark_filter l \<sigma> L"
+apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> Mark_filter l \<sigma> L)" in   Mark_filter_induct_1)
 apply clarsimp
 apply (clarsimp split: Value.splits)
 apply blast
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply rule
 apply (subgoal_tac "l\<notin>La")
 apply (clarsimp split: Value.splits Storable.splits)
 apply (rule l_in_fold_union_selection_empty)
 apply blast
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply (drule_tac x=xa in bspec,blast) 
 apply (drule_tac x=xb in bspec,blast) 
 apply (drule_tac x="insert l (La \<union> S xb)" in spec)
-apply (clarsimp simp del: RMI_filter.simps)
+apply (clarsimp simp del: Mark_filter.simps)
 apply (erule impE, blast)
 
 apply clarsimp
@@ -2176,7 +2169,7 @@ apply (clarsimp split: split_if )
 apply blast
 apply clarsimp
 apply (subgoal_tac "distinct (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran a)))")
-apply (drule_tac SF=RMI_filter  and \<sigma>=\<sigma> and l = l and L = "La" and LS="{l}" in SF_fold_to_Union_what_F)
+apply (drule_tac SF=Mark_filter  and \<sigma>=\<sigma> and l = l and L = "La" and LS="{l}" in SF_fold_to_Union_what_F)
 apply clarsimp
 apply (drule_tac x=xb in bspec,blast) 
 apply (rotate_tac -1,drule_tac x=xa in bspec,blast) 
@@ -2208,9 +2201,9 @@ done
 *)
 
 lemma equivalence_filters_1:
-"\<forall> L'. ((serialization_filter l \<sigma> L)  \<subseteq> (RMI_filter l \<sigma> L') \<union> L \<union> L')"
+"\<forall> L'. ((serialization_filter l \<sigma> L)  \<subseteq> (Mark_filter l \<sigma> L') \<union> L \<union> L')"
 apply (rule_tac P= 
-"\<lambda> S l'' \<sigma> L. \<forall> L'. (S  \<subseteq> (RMI_filter l'' \<sigma> L') \<union> L \<union> L')" in   serialization_filter_induct_1)
+"\<lambda> S l'' \<sigma> L. \<forall> L'. (S  \<subseteq> (Mark_filter l'' \<sigma> L') \<union> L \<union> L')" in   serialization_filter_induct_1)
 apply blast
 apply (clarsimp split: Value.splits)
 apply (clarsimp)
