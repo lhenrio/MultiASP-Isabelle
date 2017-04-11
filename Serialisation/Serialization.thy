@@ -30,7 +30,8 @@ done
 definition Referenced_locations_Value:: "Value \<Rightarrow> Location set"
 where  "Referenced_locations_Value v \<equiv> (case v of ObjRef l \<Rightarrow>{l} | _ \<Rightarrow> {})"
 
-definition Referenced_locations_Location:: "Store \<Rightarrow>Location \<Rightarrow> Location set"
+definition Referenced_locations_Location:: "Store \<Rightarrow>Location \<Rightarrow> Location set" 
+(*Set of locations referenced from a location (non-recursive))*)
 where  "Referenced_locations_Location \<sigma> l \<equiv> 
 case \<sigma> l of 
 None \<Rightarrow>{} |
@@ -712,7 +713,7 @@ sigma' is exactly the store captured by the algorithm (the smallest necessary su
 where
 "serialize_filter l \<sigma> \<equiv>  \<sigma> |` serialization_filter l \<sigma> {}" 
 
-(* intermediary lemma for serialization_filter_induct_1*)
+(* intermediary lemma for serialization_filter1*)
 lemma SFI1SG1: "(\<And>a b. l \<notin> L \<Longrightarrow>
                \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
                \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (serialization_filter x \<sigma> (L \<union> {l})) x \<sigma> (L \<union> {l}) \<Longrightarrow>
@@ -729,7 +730,7 @@ apply (case_tac prod)
 apply clarsimp
 apply blast
 done
-(* intermediary lemma for serialization_filter_induct_1 and 1B*)
+(* intermediary lemma for serialization_filter1 and 1B*)
 lemma  SFI1SG2:"(\<And>x2 v nat.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
@@ -747,7 +748,7 @@ done
 1B - the same as 1 but weaker on the recurrence hypothesis taking into acccount that the current loc l is filtered
 2 - is the most natural one
 *)
-lemma serialization_filter_induct_1: "   
+lemma serialization_filter1: "   
 (\<And>l \<sigma> L. \<sigma> l=None\<or>l\<in>L \<longrightarrow> P {} l \<sigma> L) \<Longrightarrow> 
 (\<And>l \<sigma> L V. l\<notin>L \<Longrightarrow>  \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L) \<Longrightarrow> 
 (\<And>l \<sigma> L f C.
@@ -775,7 +776,7 @@ apply (case_tac val)
 apply (erule SFI1SG2,simp+)
 done
 
-(* intermediary lemma for serialization_filter_induct_1B*)
+(* intermediary lemma for serialization_filter1B*)
 lemma SFI1SG1B: "(\<And>a b. l \<notin> L \<Longrightarrow>
                \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
                \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a)-{l}. P (serialization_filter x \<sigma> (L \<union> {l})) x \<sigma> (L \<union> {l}) \<Longrightarrow>
@@ -803,7 +804,7 @@ apply (subgoal_tac
 apply auto
 done
 
-lemma serialization_filter_induct_1B: "   
+lemma serialization_filter1B: "   
 (\<And>l \<sigma> L. (\<sigma> l=None\<or>l\<in>L) \<longrightarrow> P {} l \<sigma> L) \<Longrightarrow> 
 (\<And>l \<sigma> L V. l\<notin>L \<Longrightarrow>  \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L) \<Longrightarrow> 
 (\<And>l \<sigma> L f C.
@@ -837,7 +838,7 @@ apply (case_tac x2)
 apply (erule SFI1SG2,simp+)
 done
 
-lemma serialization_filter_induct_2: "   (\<And>l \<sigma> L. P {} ) \<Longrightarrow>
+lemma serialization_filter2: "   (\<And>l \<sigma> L. P {} ) \<Longrightarrow> (* NOT USED FOR THE MOMENT *)
 (\<And>l \<sigma> L V.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} ) \<Longrightarrow> 
 (\<And>l \<sigma> L f C.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (f,C)) \<Longrightarrow> 
@@ -849,13 +850,13 @@ lemma serialization_filter_induct_2: "   (\<And>l \<sigma> L. P {} ) \<Longright
            (P ({l}\<union>(serialization_filter l' \<sigma> (L\<union>{l}))))) 
   \<Longrightarrow>    
    P (serialization_filter l \<sigma> L) "
-apply (insert  serialization_filter_induct_1 [of "(\<lambda> S l \<sigma> L. (P S))" ])
+apply (insert  serialization_filter1 [of "(\<lambda> S l \<sigma> L. (P S))" ])
 apply auto
 done
 
 section{* Serialization filter lemmas*}
 lemma serialization_filter_subset: "serialization_filter l \<sigma> L \<subseteq> dom \<sigma>"
-apply (rule_tac P= "\<lambda> S l \<sigma> L. (S \<subseteq> dom \<sigma>)" in   serialization_filter_induct_1)
+apply (rule_tac P= "\<lambda> S l \<sigma> L. (S \<subseteq> dom \<sigma>)" in   serialization_filter1)
    apply auto
 apply (drule_tac x=xb in bspec)
  apply auto
@@ -876,7 +877,7 @@ done
 
 lemma Serialization_excluded_set_subset[rule_format]: 
 "\<forall> L . L\<subseteq>L' \<longrightarrow> serialization_filter l \<sigma> L' \<subseteq> serialization_filter l \<sigma> L"
-apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> serialization_filter l \<sigma> L)" in   serialization_filter_induct_1)
+apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> serialization_filter l \<sigma> L)" in   serialization_filter1)
 (*4*)
    apply clarsimp
   apply (clarsimp split: Value.splits)
@@ -904,7 +905,7 @@ done
 
 lemma serialization_filter_dom_subset_pre[rule_format]: 
           "\<forall> \<sigma>' v. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> serialization_filter l \<sigma> L \<subseteq> dom \<sigma>'))"
-apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> S \<subseteq> dom \<sigma>'))" in   serialization_filter_induct_1)
+apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> S \<subseteq> dom \<sigma>'))" in   serialization_filter1)
 (*4*)
    apply force
   apply clarsimp
@@ -953,9 +954,9 @@ lemma serialization_filter_dom_subset:
   "serialize (ObjRef l) \<sigma> \<sigma>' \<Longrightarrow>  serialization_filter l \<sigma> L \<subseteq> dom \<sigma>' "
 by (drule serialization_filter_dom_subset_pre[of "ObjRef l" \<sigma> \<sigma>'],auto)
 
-lemma serialization_filter_coincide_val_pre[rule_format,elim]: (* VERIY SIMILAR TO MLEMMA dom_subset_pre*)
+lemma serialization_filter_coincide_val_pre[rule_format,elim]: (* VERY SIMILAR TO LEMMA dom_subset_pre*)
 "\<forall> \<sigma>' v l'.(serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef x2 \<longrightarrow> l'\<in>serialization_filter x2 \<sigma> L \<longrightarrow> \<sigma> l' = \<sigma>' l'))"
-apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v l'. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> l'\<in>S \<longrightarrow> \<sigma> l' = \<sigma>' l'))" in   serialization_filter_induct_1)
+apply (rule_tac P= "\<lambda> S l \<sigma> L. \<forall> \<sigma>' v l'. (serialize v \<sigma> \<sigma>' \<longrightarrow> (v=ObjRef l \<longrightarrow> l'\<in>S \<longrightarrow> \<sigma> l' = \<sigma>' l'))" in   serialization_filter1)
  apply clarsimp
   apply clarsimp
   apply (erule serialize.cases,simp,simp,simp)
@@ -1013,7 +1014,7 @@ lemma serialization_filter_WF_1step_obj[rule_format]:
         \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  l'\<in>L\<or>l'\<in>serialization_filter l'' \<sigma> L "
 apply (rule_tac P= 
 "\<lambda> S l'' \<sigma> L. l\<in>S \<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some ( ObjRef l')   \<longrightarrow>Well_Formed_Store \<sigma>
-\<longrightarrow>   l'\<in>L\<or>l'\<in>S" in   serialization_filter_induct_1)
+\<longrightarrow>   l'\<in>L\<or>l'\<in>S" in   serialization_filter1)
 (*4*)
    apply force
   apply clarsimp
@@ -1048,7 +1049,7 @@ lemma serialization_filter_WF_1step_ref[rule_format]:
   "l\<in>serialization_filter l'' \<sigma> L \<longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) 
         \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  l'\<in>L\<or>l'\<in>serialization_filter l'' \<sigma> L "
 apply (rule_tac P= "\<lambda> S l'' \<sigma> L. l\<in>S \<longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) 
-        \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  l'\<in>L\<or>l'\<in>S" in   serialization_filter_induct_1)
+        \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  l'\<in>L\<or>l'\<in>S" in   serialization_filter1)
    apply force
   apply clarsimp
 (*2*)
@@ -1129,7 +1130,7 @@ done
 lemma serialization_filter_verifies_serialize_weak_axiomatic_def: 
    "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
 apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
-            in serialization_filter_induct_1B)
+            in serialization_filter1B)
 (*4 None*)
    apply clarify
    apply (rule serialize_weak.intros(4))
@@ -1311,16 +1312,16 @@ done
 section{*Mark filtering*}
 
 
-function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
+function (sequential) Serialization_filter_eff :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
 (*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
   where
     "
-    (Mark_filter l \<sigma> L ) = (if l\<in>L then {} else
+    (Serialization_filter_eff l \<sigma> L ) = (if l\<in>L then {} else
       (case \<sigma>(l) of
       None => {} |
-      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)   )) ) 
+      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S)   )) ) 
                 (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
-      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}) )|
+      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Serialization_filter_eff l' \<sigma> (L\<union>{l}) )|
       _ \<Rightarrow> {l}))" 
 
 by auto
@@ -1350,22 +1351,22 @@ apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}")
    apply auto
 done
 
-abbreviation serialize_Mark:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
+abbreviation serialize_filter_eff:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
 where
-"serialize_Mark l \<sigma> \<equiv>  \<sigma> |` Mark_filter l \<sigma> {} " 
+"serialize_filter_eff l \<sigma> \<equiv>  \<sigma> |` Serialization_filter_eff l \<sigma> {} " 
 
 lemma SFI2SG1: "
        (\<And>l \<sigma> L a b S.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Mark_filter x \<sigma> (L \<union> {l} \<union> S x) ) x \<sigma> (L \<union> {l} \<union> S x)  \<Longrightarrow>
-                     P ({l} \<union> \<Union>((\<lambda>x. Mark_filter x \<sigma> (L \<union> {l} \<union> S x) ) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L ) \<Longrightarrow>
-       (\<And>l \<sigma> L l' . l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Mark_filter l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow> P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
+                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> S x) ) x \<sigma> (L \<union> {l} \<union> S x)  \<Longrightarrow>
+                     P ({l} \<union> \<Union>((\<lambda>x. Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> S x) ) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L ) \<Longrightarrow>
+       (\<And>l \<sigma> L l' . l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Serialization_filter_eff l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow> P ({l} \<union> Serialization_filter_eff l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
        (\<And>x2 prod x xa.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some x2 \<Longrightarrow>
                      x2 = Obj prod \<Longrightarrow>
                      x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-                     P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) ) x \<sigma> (L \<union> {l} \<union> xa) ) \<Longrightarrow>
-       (\<And>l \<sigma> L  . P {} l \<sigma> L ) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Mark_filter l \<sigma> L ) l \<sigma> L 
+                     P (Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> xa) ) x \<sigma> (L \<union> {l} \<union> xa) ) \<Longrightarrow>
+       (\<And>l \<sigma> L  . P {} l \<sigma> L ) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Serialization_filter_eff l \<sigma> L ) l \<sigma> L 
 "
 apply (case_tac prod,rename_tac f C)
 apply clarsimp
@@ -1390,7 +1391,7 @@ apply (subgoal_tac
 (*2*)
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>(Referenced_locations_Value ` (ran (f)))))")
-  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L  in SF_fold_to_Union,simp)
+  apply (drule_tac SF=Serialization_filter_eff and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L  in SF_fold_to_Union,simp)
 (*SF_fold_to_Union[rule_format]: "((distinct fieldlist)\<longrightarrow>(\<exists> F . (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS)  = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)))))"*)
   apply clarsimp
 (*3*)
@@ -1417,32 +1418,32 @@ lemma  SFI2SG2:"(\<And>x2 Value nat.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
            x2 = StoredVal Value \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> 
-           P (Mark_filter nat \<sigma> (L \<union> {l}) ) nat \<sigma> (L \<union> {l}) ) \<Longrightarrow>
+           P (Serialization_filter_eff nat \<sigma> (L \<union> {l}) ) nat \<sigma> (L \<union> {l}) ) \<Longrightarrow>
      (\<And>l'. l \<notin> L \<Longrightarrow>
               \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
-              P (Mark_filter l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow>
-              P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
-  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L \<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Mark_filter l \<sigma> L ) l \<sigma> L 
+              P (Serialization_filter_eff l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow>
+              P ({l} \<union> Serialization_filter_eff l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
+  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L \<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Serialization_filter_eff l \<sigma> L ) l \<sigma> L 
   "
 apply clarsimp
 done
 
-lemma Mark_filter_induct_1: "   
+lemma Serialization_filter_eff1: "   
 (\<And>l \<sigma> L . P {} l \<sigma> L ) \<Longrightarrow> 
 (\<And>l \<sigma> L V .  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L ) \<Longrightarrow> 
 (\<And>l \<sigma> L a b S .
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
            (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
-                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) ) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                          P (Serialization_filter_eff x \<sigma> (L\<union>{l}\<union>(S x)) ) x \<sigma> (L\<union>{l}\<union>(S x)) 
                                      ) \<Longrightarrow>
-            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x))` 
+            P ({l}\<union>(\<Union> ((\<lambda> x. Serialization_filter_eff x \<sigma> (L \<union> {l}\<union>S x))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L )  \<Longrightarrow>
 (\<And>l \<sigma> L l' .
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
-           (P (Mark_filter l' \<sigma> (L\<union>{l}) ) l' \<sigma>  (L\<union>{l}) )\<Longrightarrow>
-           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) )) l \<sigma> L ))         \<Longrightarrow>   
-   P (Mark_filter l' \<sigma>' L' ) l' \<sigma>' L' "
-apply (rule Mark_filter.induct)
+           (P (Serialization_filter_eff l' \<sigma> (L\<union>{l}) ) l' \<sigma>  (L\<union>{l}) )\<Longrightarrow>
+           (P ({l}\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}) )) l \<sigma> L ))         \<Longrightarrow>   
+   P (Serialization_filter_eff l' \<sigma>' L' ) l' \<sigma>' L' "
+apply (rule Serialization_filter_eff.induct)
 apply (case_tac "\<sigma> l")
  apply (simp)
 (*1*)
@@ -1455,36 +1456,36 @@ done
 
 
 
-lemma Mark_filterD_L:"x\<in>Mark_filter l \<sigma> L \<Longrightarrow> l\<notin>L"
+lemma Serialization_filter_effD_L:"x\<in>Serialization_filter_eff l \<sigma> L \<Longrightarrow> l\<notin>L"
 apply force
 done
 
-lemma Mark_filterD_L_contrapos:"l\<notin>Mark_filter l \<sigma> L  \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
+lemma Serialization_filter_effD_L_contrapos:"l\<notin>Serialization_filter_eff l \<sigma> L  \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (clarsimp,rename_tac f C)
 apply (subgoal_tac "l\<in>{l}",drule_tac F="\<lambda> l' S . (if l' = l \<or> l' \<in> L \<or> l' \<in> S then {}
                                   else case \<sigma> l' of None \<Rightarrow> {}
                                                  | Some (Obj obj) \<Rightarrow>
-                                                     fold (\<lambda>l'a Sa. Sa \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa))
+                                                     fold (\<lambda>l'a Sa. Sa \<union> Serialization_filter_eff l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa))
                                                       (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {l'}
-                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) )" in AuxiliaryFunctions.foldr_Un_init
+                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Serialization_filter_eff l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) )" in AuxiliaryFunctions.foldr_Un_init
        ,blast)
 apply blast
 apply (simp split: Value.splits Storable.splits split_if_asm )
 done
 
-lemma Mark_filter_no_l[simp]:"l\<notin>Mark_filter l \<sigma> L = (l\<in>L \<or> \<sigma> l = None)"
+lemma Serialization_filter_eff_no_l[simp]:"l\<notin>Serialization_filter_eff l \<sigma> L = (l\<in>L \<or> \<sigma> l = None)"
 apply rule
-apply (rule Mark_filterD_L_contrapos,simp)
+apply (rule Serialization_filter_effD_L_contrapos,simp)
 apply auto
 done
 
-lemma Mark_filterD: "x\<in>Mark_filter l \<sigma> L \<Longrightarrow> 
+lemma Serialization_filter_effD: "x\<in>Serialization_filter_eff l \<sigma> L \<Longrightarrow> 
                                    ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)))) 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S)))) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )))"
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) )))"
 apply (case_tac "\<sigma> l")
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (case_tac "x=l",force)
@@ -1493,12 +1494,12 @@ apply (force split: option.splits Storable.splits split_if_asm Value.splits)
 apply (force split: Value.splits split_if_asm)
 done
 
-lemma Mark_filterI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
+lemma Serialization_filter_effI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )) ) 
-                                   \<Longrightarrow> x\<in>Mark_filter l \<sigma> L "
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) )) ) 
+                                   \<Longrightarrow> x\<in>Serialization_filter_eff l \<sigma> L "
 apply (elim disjE)
 apply (clarsimp split: Storable.splits split_if_asm)
 apply (clarsimp split: Storable.splits split_if_asm )
@@ -1509,48 +1510,49 @@ apply (simp split: Value.splits)
 apply force
 done
 
-lemma Mark_filter_def2: 
-"x\<in>Mark_filter l \<sigma> L  = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
+lemma Serialization_filter_eff_def2: 
+"x\<in>Serialization_filter_eff l \<sigma> L  = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )) )) 
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) )) )) 
                        "
 apply rule 
-apply (frule Mark_filterD, drule Mark_filterD_L,blast)
-apply (rule Mark_filterI,blast,blast)
+apply (frule Serialization_filter_effD, drule Serialization_filter_effD_L,blast)
+apply (rule Serialization_filter_effI,blast,blast)
 done
 
-declare Mark_filter.simps[simp del]
+declare Serialization_filter_eff.simps[simp del]
 
-lemma Mark_filter_empty[simp]: "(Mark_filter l \<sigma> L  ={}) = (l\<in>L\<or> \<sigma> l = None)"
+lemma Serialization_filter_eff_empty[simp]: "(Serialization_filter_eff l \<sigma> L  ={}) = (l\<in>L\<or> \<sigma> l = None)"
 apply rule
-apply (case_tac "l\<in>(Mark_filter l \<sigma> L )")
+apply (case_tac "l\<in>(Serialization_filter_eff l \<sigma> L )")
 apply force
-apply (drule Mark_filterD_L_contrapos)
+apply (drule Serialization_filter_effD_L_contrapos)
 apply simp
-apply (clarsimp simp: Mark_filter.simps)
+apply (clarsimp simp: Serialization_filter_eff.simps)
 done
 
-lemma serialize_value_Mark: "(serialize_Mark l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
-apply (subgoal_tac "l'\<in>(Mark_filter l \<sigma> {} )")
+lemma serialize_value_Mark: "(serialize_filter_eff l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+apply (subgoal_tac "l'\<in>(Serialization_filter_eff l \<sigma> {} )")
  apply (drule_tac m=\<sigma> in Map.restrict_in)
  apply force
 apply (rule Map_restrict_Some,blast)
 done
 
-lemma Mark_filter_serialization_filter:
-" Mark_filter l \<sigma> L = serialization_filter l \<sigma> L"
-apply (rule_tac P= "\<lambda> S l \<sigma> L. Mark_filter l \<sigma> L = serialization_filter l \<sigma> L" in   serialization_filter_induct_1B)
+lemma Serialization_filter_eff_serialization_filter:
+" Serialization_filter_eff l \<sigma> L = serialization_filter l \<sigma> L"
+apply (rule_tac P= "\<lambda> S l \<sigma> L. Serialization_filter_eff l \<sigma> L = serialization_filter l \<sigma> L" in   serialization_filter1B)
 apply auto
 apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
-            in serialization_filter_induct_1B)apply clarsimp
+            in serialization_filter1B)
+apply clarsimp
 apply rule
 apply clarsimp
-apply (auto elim: Mark_filterD)
-apply (drule Mark_filterD)
+apply (auto elim: Serialization_filter_effD)
+apply (drule Serialization_filter_effD)
 apply auto
-apply (rule Mark_filterI)
+apply (rule Serialization_filter_effI)
 apply auto
 
 section
@@ -1558,16 +1560,16 @@ section
 section{*Mark filtering*}
 
 
-function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set\<Rightarrow> Location set"
+function (sequential) Serialization_filter_eff :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set\<Rightarrow> Location set"
 (*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
   where
     "
-    (Mark_filter l \<sigma> L T) = (if l\<in>L then {} else
+    (Serialization_filter_eff l \<sigma> L T) = (if l\<in>L then {} else
       (case \<sigma>(l) of
       None => {} |
-      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)   (T\<union>(\<Union>(Referenced_locations_Value`ran(fst(obj))))))) ) 
+      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S)   (T\<union>(\<Union>(Referenced_locations_Value`ran(fst(obj))))))) ) 
                 (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
-      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}) T)|
+      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)|
       _ \<Rightarrow> {l}))" 
 
 by auto
@@ -1597,22 +1599,22 @@ apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}")
    apply auto
 done
 
-abbreviation serialize_Mark:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
+abbreviation serialize_filter_eff:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
 where
-"serialize_Mark l \<sigma> \<equiv>  \<sigma> |` Mark_filter l \<sigma> {} {}" 
+"serialize_filter_eff l \<sigma> \<equiv>  \<sigma> |` Serialization_filter_eff l \<sigma> {} {}" 
 
 lemma SFI2SG1: "
        (\<And>l \<sigma> L a b S T.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Mark_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
-                     P ({l} \<union> \<Union>((\<lambda>x. Mark_filter x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L T) \<Longrightarrow>
-       (\<And>l \<sigma> L l' T. l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Mark_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow> P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
+                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
+                     P ({l} \<union> \<Union>((\<lambda>x. Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L T) \<Longrightarrow>
+       (\<And>l \<sigma> L l' T. l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Serialization_filter_eff l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow> P ({l} \<union> Serialization_filter_eff l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
        (\<And>x2 prod x xa.
            l \<notin> L \<Longrightarrow> \<sigma> l = Some x2 \<Longrightarrow>
                      x2 = Obj prod \<Longrightarrow>
                      x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-                     P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-       (\<And>l \<sigma> L  T. P {} l \<sigma> L T) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
+                     P (Serialization_filter_eff x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
+       (\<And>l \<sigma> L  T. P {} l \<sigma> L T) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Serialization_filter_eff l \<sigma> L T) l \<sigma> L T
 "
 apply (case_tac prod,rename_tac f C)
 apply clarsimp
@@ -1637,7 +1639,7 @@ apply (subgoal_tac
 (*2*)
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>(Referenced_locations_Value ` (ran (f)))))")
-  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>UNION (ran f) Referenced_locations_Value" in SF_fold_to_Union,simp)
+  apply (drule_tac SF=Serialization_filter_eff and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>UNION (ran f) Referenced_locations_Value" in SF_fold_to_Union,simp)
 (*SF_fold_to_Union[rule_format]: "((distinct fieldlist)\<longrightarrow>(\<exists> F . (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS)  = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)))))"*)
   apply clarsimp
 (*3*)
@@ -1666,32 +1668,32 @@ lemma  SFI2SG2:"(\<And>x2 Value nat.
            l \<notin> L \<Longrightarrow>
            \<sigma> l = Some x2 \<Longrightarrow>
            x2 = StoredVal Value \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> 
-           P (Mark_filter nat \<sigma> (L \<union> {l}) T) nat \<sigma> (L \<union> {l}) T) \<Longrightarrow>
+           P (Serialization_filter_eff nat \<sigma> (L \<union> {l}) T) nat \<sigma> (L \<union> {l}) T) \<Longrightarrow>
      (\<And>l'. l \<notin> L \<Longrightarrow>
               \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
-              P (Mark_filter l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow>
-              P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
-  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L T\<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
+              P (Serialization_filter_eff l' \<sigma> (L \<union> {l}) T) l' \<sigma> (L \<union> {l}) T \<Longrightarrow>
+              P ({l} \<union> Serialization_filter_eff l' \<sigma> (L \<union> {l}) T) l \<sigma> L T) \<Longrightarrow>
+  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L T\<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Serialization_filter_eff l \<sigma> L T) l \<sigma> L T
   "
 apply clarsimp
 done
 
-lemma Mark_filter_induct_1: "   
+lemma Serialization_filter_eff1: "   
 (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L V T.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L a b S T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
            (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
-                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                          P (Serialization_filter_eff x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
                                      (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) \<Longrightarrow>
-            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
+            P ({l}\<union>(\<Union> ((\<lambda> x. Serialization_filter_eff x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L T)  \<Longrightarrow>
 (\<And>l \<sigma> L l' T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
-           (P (Mark_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
-           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
-   P (Mark_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
-apply (rule Mark_filter.induct)
+           (P (Serialization_filter_eff l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
+           (P ({l}\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
+   P (Serialization_filter_eff l' \<sigma>' L' T) l' \<sigma>' L' T"
+apply (rule Serialization_filter_eff.induct)
 apply (case_tac "\<sigma> l")
  apply (simp)
 (*1*)
@@ -1704,36 +1706,36 @@ done
 
 
 
-lemma Mark_filterD_L:"x\<in>Mark_filter l \<sigma> L T\<Longrightarrow> l\<notin>L"
+lemma Serialization_filter_effD_L:"x\<in>Serialization_filter_eff l \<sigma> L T\<Longrightarrow> l\<notin>L"
 apply force
 done
 
-lemma Mark_filterD_L_contrapos:"l\<notin>Mark_filter l \<sigma> L T \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
+lemma Serialization_filter_effD_L_contrapos:"l\<notin>Serialization_filter_eff l \<sigma> L T \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (clarsimp,rename_tac f C)
 apply (subgoal_tac "l\<in>{l}",drule_tac F="\<lambda> l' S . (if l' = l \<or> l' \<in> L \<or> l' \<in> S then {}
                                   else case \<sigma> l' of None \<Rightarrow> {}
                                                  | Some (Obj obj) \<Rightarrow>
-                                                     fold (\<lambda>l'a Sa. Sa \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value \<union> \<Union>(Referenced_locations_Value ` ran (fst obj))))
+                                                     fold (\<lambda>l'a Sa. Sa \<union> Serialization_filter_eff l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value \<union> \<Union>(Referenced_locations_Value ` ran (fst obj))))
                                                       (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {l'}
-                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value))" in AuxiliaryFunctions.foldr_Un_init
+                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Serialization_filter_eff l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) (T \<union> UNION (ran (fst (f, C))) Referenced_locations_Value))" in AuxiliaryFunctions.foldr_Un_init
        ,blast)
 apply blast
 apply (simp split: Value.splits Storable.splits split_if_asm )
 done
 
-lemma Mark_filter_no_l[simp]:"l\<notin>Mark_filter l \<sigma> L T= (l\<in>L \<or> \<sigma> l = None)"
+lemma Serialization_filter_eff_no_l[simp]:"l\<notin>Serialization_filter_eff l \<sigma> L T= (l\<in>L \<or> \<sigma> l = None)"
 apply rule
-apply (rule Mark_filterD_L_contrapos,simp)
+apply (rule Serialization_filter_effD_L_contrapos,simp)
 apply auto
 done
 
-lemma Mark_filterD_: "x\<in>Mark_filter l \<sigma> L T\<Longrightarrow> 
+lemma Serialization_filter_effD_: "x\<in>Serialization_filter_eff l \<sigma> L T\<Longrightarrow> 
                                    ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields)))))) 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields)))))) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)))"
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)))"
 apply (case_tac "\<sigma> l")
 apply (simp split: option.splits Storable.splits split_if_asm )
 apply (case_tac "x=l",force)
@@ -1742,12 +1744,12 @@ apply (force split: option.splits Storable.splits split_if_asm Value.splits)
 apply (force split: Value.splits split_if_asm)
 done
 
-lemma Mark_filterI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
+lemma Serialization_filter_effI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)) ) 
-                                   \<Longrightarrow> x\<in>Mark_filter l \<sigma> L T"
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)) ) 
+                                   \<Longrightarrow> x\<in>Serialization_filter_eff l \<sigma> L T"
 apply (elim disjE)
 apply (clarsimp split: Storable.splits split_if_asm)
 apply (clarsimp split: Storable.splits split_if_asm )
@@ -1758,61 +1760,61 @@ apply (simp split: Value.splits)
 apply force
 done
 
-lemma Mark_filter_def2: 
-"x\<in>Mark_filter l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
+lemma Serialization_filter_eff_def2: 
+"x\<in>Serialization_filter_eff l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
-                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)) )) 
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)) )) 
                        "
 apply rule 
-apply (frule Mark_filterD_, drule Mark_filterD_L,blast)
-apply (rule Mark_filterI,blast,blast)
+apply (frule Serialization_filter_effD_, drule Serialization_filter_effD_L,blast)
+apply (rule Serialization_filter_effI,blast,blast)
 done
 
-declare Mark_filter.simps[simp del]
+declare Serialization_filter_eff.simps[simp del]
 
-lemma Mark_filter_empty[simp]: "(Mark_filter l \<sigma> L T ={}) = (l\<in>L\<or> \<sigma> l = None)"
+lemma Serialization_filter_eff_empty[simp]: "(Serialization_filter_eff l \<sigma> L T ={}) = (l\<in>L\<or> \<sigma> l = None)"
 apply rule
-apply (case_tac "l\<in>(Mark_filter l \<sigma> L T)")
+apply (case_tac "l\<in>(Serialization_filter_eff l \<sigma> L T)")
 apply force
-apply (drule Mark_filterD_L_contrapos)
+apply (drule Serialization_filter_effD_L_contrapos)
 apply simp
-apply (clarsimp simp: Mark_filter.simps)
+apply (clarsimp simp: Serialization_filter_eff.simps)
 done
 
-lemma serialize_value_Mark: "(serialize_Mark l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
-apply (subgoal_tac "l'\<in>(Mark_filter l \<sigma> {} {})")
+lemma serialize_value_Mark: "(serialize_filter_eff l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+apply (subgoal_tac "l'\<in>(Serialization_filter_eff l \<sigma> {} {})")
  apply (drule_tac m=\<sigma> in Map.restrict_in)
  apply force
 apply (rule Map_restrict_Some,blast)
 done
 
-lemma Mark_filter_serialization_filter:
-"Mark_filter l \<sigma> L {}= serialization_filter l \<sigma> L"
-apply (rule serialization_filter_induct_1B)
+lemma Serialization_filter_eff_serialization_filter:
+"Serialization_filter_eff l \<sigma> L {}= serialization_filter l \<sigma> L"
+apply (rule serialization_filter1B)
 apply auto
 
-lemma Mark_filter_induct_2: "   
+lemma Serialization_filter_eff2: "   
 (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L V T.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L a b S T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
         let locationlist = sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(a))) in
-           S = (\<lambda> n . (if (n< length locationlist) then (L\<union>{l}\<union> (\<Union>k\<in>{n'. n'<n}. (Mark_filter ((locationlist)!k) \<sigma> (L\<union>{l}\<union>S k) T))) else {})) \<Longrightarrow>
+           S = (\<lambda> n . (if (n< length locationlist) then (L\<union>{l}\<union> (\<Union>k\<in>{n'. n'<n}. (Serialization_filter_eff ((locationlist)!k) \<sigma> (L\<union>{l}\<union>S k) T))) else {})) \<Longrightarrow>
            (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
-                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                          P (Serialization_filter_eff x \<sigma> (L\<union>{l}\<union>(S x)) (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) x \<sigma> (L\<union>{l}\<union>(S x)) 
                                      (T\<union>\<Union>(Referenced_locations_Value`(ran a)))) \<Longrightarrow>
-            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
+            P ({l}\<union>(\<Union> ((\<lambda> x. Serialization_filter_eff x \<sigma> (L \<union> {l}\<union>S x) (T\<union>\<Union>(Referenced_locations_Value`(ran a))))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L T)  \<Longrightarrow>
 (\<And>l \<sigma> L l' T.
         l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
-           (P (Mark_filter l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
-           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
-   P (Mark_filter l' \<sigma>' L' T) l' \<sigma>' L' T"
-apply (rule Mark_filter.induct)
+           (P (Serialization_filter_eff l' \<sigma> (L\<union>{l}) T) l' \<sigma>  (L\<union>{l}) T)\<Longrightarrow>
+           (P ({l}\<union>(Serialization_filter_eff l' \<sigma> (L\<union>{l}) T)) l \<sigma> L T))         \<Longrightarrow>   
+   P (Serialization_filter_eff l' \<sigma>' L' T) l' \<sigma>' L' T"
+apply (rule Serialization_filter_eff.induct)
 apply (case_tac "\<sigma> l")
- apply (simp add: Mark_filter.simps)
+ apply (simp add: Serialization_filter_eff.simps)
 (*1*)
 apply (case_tac a)
 
@@ -1824,23 +1826,23 @@ done
 
 
 
-lemma T_is_accessory_pre: "x\<in>Mark_filter l \<sigma> L T \<longrightarrow> x\<in>Mark_filter l \<sigma> L (T\<union>T')"
-apply (rule_tac P="\<lambda> S l \<sigma> L T. x\<in>S \<longrightarrow>x\<in> Mark_filter l \<sigma> L (T\<union>T')" in Mark_filter_induct_1)
+lemma T_is_accessory_pre: "x\<in>Serialization_filter_eff l \<sigma> L T \<longrightarrow> x\<in>Serialization_filter_eff l \<sigma> L (T\<union>T')"
+apply (rule_tac P="\<lambda> S l \<sigma> L T. x\<in>S \<longrightarrow>x\<in> Serialization_filter_eff l \<sigma> L (T\<union>T')" in Serialization_filter_eff1)
 apply auto
-apply (erule Mark_filterI_,force)
-apply (erule Mark_filterI_,force)
-apply (erule Mark_filterI_,simp)
+apply (erule Serialization_filter_effI_,force)
+apply (erule Serialization_filter_effI_,force)
+apply (erule Serialization_filter_effI_,simp)
 apply (drule_tac x=xa in bspec,simp)
 apply (drule_tac x=xaa in bspec,simp)
 apply clarsimp
 S too imprecise
 
 lemma serialization_filter_WF_1step_obj[rule_format]: 
-  "l\<in>Mark_filter l'' \<sigma> L T\<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some (ObjRef l') 
+  "l\<in>Serialization_filter_eff l'' \<sigma> L T\<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some (ObjRef l') 
         \<longrightarrow>Well_Formed_Store \<sigma>\<longrightarrow>  \<exists> t\<in>T. l'\<in>serialization_filter l'' \<sigma> L {} \<or>l'\<in>L\<or>l'\<in>serialization_filter l'' \<sigma> L T"
 apply (rule_tac P= 
 "\<lambda> S l'' \<sigma> L. l\<in>S \<longrightarrow> \<sigma> l = Some (Obj (a,b)) \<longrightarrow>  a x = Some ( ObjRef l')   \<longrightarrow>Well_Formed_Store \<sigma>
-\<longrightarrow>   l'\<in>L\<or>l'\<in>S" in   serialization_filter_induct_1)
+\<longrightarrow>   l'\<in>L\<or>l'\<in>S" in   serialization_filter1)
 (*4*)
    apply force
   apply clarsimp
@@ -1872,7 +1874,7 @@ apply auto
 done
 
 
-lemma Serialization_WF: "Well_Formed_Store \<sigma> \<Longrightarrow> Well_Formed_Store (serialize_Mark l \<sigma>)"
+lemma Serialization_WF: "Well_Formed_Store \<sigma> \<Longrightarrow> Well_Formed_Store (serialize_filter_eff l \<sigma>)"
 apply (unfold Well_Formed_Store_def)
 apply (intro ballI)
 apply (fold Well_Formed_Store_def)
@@ -1882,7 +1884,7 @@ apply (subgoal_tac " la \<in> dom \<sigma>")
  apply rule
  apply (unfold Referenced_locations_Location_def)
 (*2*)
- apply (case_tac  "serialize_Mark l \<sigma> la")
+ apply (case_tac  "serialize_filter_eff l \<sigma> la")
   apply blast
  apply (drule serialize_value)
  apply (subgoal_tac "a=aa")
@@ -1918,33 +1920,33 @@ apply blast
 done
 
 
-lemma Mark_filter_union: (Mark_filter l' \<sigma> L\<union>L')\<union>L' = (Mark_filter l' \<sigma> L\<union>L')
+lemma Serialization_filter_eff_union: (Serialization_filter_eff l' \<sigma> L\<union>L')\<union>L' = (Serialization_filter_eff l' \<sigma> L\<union>L')
 
-lemma fold_union_init[rule_format]: "\<forall> L'' . fold (\<lambda>l' S. S \<union> (Mark_filter l' \<sigma> S)) list (L \<union> L'') = (fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> S) list L) \<union> L''"
+lemma fold_union_init[rule_format]: "\<forall> L'' . fold (\<lambda>l' S. S \<union> (Serialization_filter_eff l' \<sigma> S)) list (L \<union> L'') = (fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> S) list L) \<union> L''"
 apply (induct_tac list)
 apply force
 apply clarsimp
-apply (drule_tac x="L''\<union>L'' \<union> Mark_filter a \<sigma> (L \<union> L'')" in spec) 
+apply (drule_tac x="L''\<union>L'' \<union> Serialization_filter_eff a \<sigma> (L \<union> L'')" in spec) 
 apply simp
 apply (subgoal_tac "(L'' \<union> F a (L \<union> L'')) =   (L'' \<union> (F a (L \<union> L'')))")
 apply simp
 apply blast
 apply blast
 done
-lemma "\<forall> L' . l \<in> fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list L = (l\<in>L\<or> 
-            ( \<exists> i<length list . let S =  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) (take i list) L  in  (l\<in>Mark_filter (list!i) \<sigma> (L' \<union> S) \<and> l\<notin>S)))"
+lemma "\<forall> L' . l \<in> fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (L' \<union> S)) list L = (l\<in>L\<or> 
+            ( \<exists> i<length list . let S =  fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (L' \<union> S)) (take i list) L  in  (l\<in>Serialization_filter_eff (list!i) \<sigma> (L' \<union> S) \<and> l\<notin>S)))"
 apply (induct_tac list)
 apply force
 apply (clarsimp)
-apply (subgoal_tac "fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list (L \<union> Mark_filter a \<sigma> (L' \<union> L)) = fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L' \<union> S)) list L \<union> Mark_filter a \<sigma> (L' \<union> L)")
+apply (subgoal_tac "fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (L' \<union> S)) list (L \<union> Serialization_filter_eff a \<sigma> (L' \<union> L)) = fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (L' \<union> S)) list L \<union> Serialization_filter_eff a \<sigma> (L' \<union> L)")
 defer
-apply (rule_tac list=list and L''="Mark_filter a \<sigma> (L' \<union> L)"  in fold_union_init)
+apply (rule_tac list=list and L''="Serialization_filter_eff a \<sigma> (L' \<union> L)"  in fold_union_init)
 apply clarsimp
 apply (case_tac "l\<in>L")
 apply force
 apply clarsimp
 apply rule
-apply (case_tac "l \<in> Mark_filter a \<sigma> (L' \<union> L)")
+apply (case_tac "l \<in> Serialization_filter_eff a \<sigma> (L' \<union> L)")
 apply clarsimp
 apply (rule_tac x=0 in exI)
 apply clarsimp
@@ -1953,23 +1955,23 @@ apply (clarsimp simp: Let_def)
 apply (rule_tac x="Suc i" in exI)
 apply (clarsimp simp: Let_def)
 
-lemma " \<forall> x . l \<in> Mark_filter l' \<sigma> L \<longrightarrow>
-                    x \<in> Mark_filter l \<sigma> L \<longrightarrow>x \<in> Mark_filter l' \<sigma> L"
-apply (rule_tac P = " \<lambda> l' \<sigma> L .\<forall> x .l \<in> Mark_filter l' \<sigma> L \<longrightarrow>
-                    x \<in> Mark_filter l \<sigma> L \<longrightarrow>x \<in> Mark_filter l' \<sigma> L" in Mark_filter.induct)
+lemma " \<forall> x . l \<in> Serialization_filter_eff l' \<sigma> L \<longrightarrow>
+                    x \<in> Serialization_filter_eff l \<sigma> L \<longrightarrow>x \<in> Serialization_filter_eff l' \<sigma> L"
+apply (rule_tac P = " \<lambda> l' \<sigma> L .\<forall> x .l \<in> Serialization_filter_eff l' \<sigma> L \<longrightarrow>
+                    x \<in> Serialization_filter_eff l \<sigma> L \<longrightarrow>x \<in> Serialization_filter_eff l' \<sigma> L" in Serialization_filter_eff.induct)
 apply (case_tac "l=la")
 apply clarsimp
 apply clarsimp
-apply (frule Mark_filterD_L)
-apply (frule Mark_filterD_L)
-apply (drule Mark_filterD_,clarsimp)
+apply (frule Serialization_filter_effD_L)
+apply (frule Serialization_filter_effD_L)
+apply (drule Serialization_filter_effD_,clarsimp)
 apply (elim disjE)
 apply clarsimp
-apply(thin_tac "(\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> l \<in> Mark_filter nat \<sigma> (insert la L) \<longrightarrow> (\<forall>x. x \<in> Mark_filter l \<sigma> (insert la L) \<longrightarrow> x \<in> Mark_filter nat \<sigma> (insert la L))) ")
+apply(thin_tac "(\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> l \<in> Serialization_filter_eff nat \<sigma> (insert la L) \<longrightarrow> (\<forall>x. x \<in> Serialization_filter_eff l \<sigma> (insert la L) \<longrightarrow> x \<in> Serialization_filter_eff nat \<sigma> (insert la L))) ")
 apply (drule_tac x= "Obj(fields,C)" in meta_spec)
 apply (drule_tac x= "fields" in meta_spec)
 apply (drule_tac x= C in meta_spec)
-apply (rule Mark_filterI_)
+apply (rule Serialization_filter_effI_)
 apply clarsimp
 apply clarsimp
 
@@ -1979,7 +1981,7 @@ DO NOT DO FOLD TO UNION FIND BETTER
 
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>x\<in>ran fields. Referenced_locations_Value x))")
-apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{la}" and l=la and L="L" in SF_fold_to_Union)
+apply (drule_tac SF=Serialization_filter_eff and \<sigma> = \<sigma> and LS ="{la}" and l=la and L="L" in SF_fold_to_Union)
 apply clarsimp
 apply (drule_tac x= xa in meta_spec)
 apply (drule_tac x= "F xa" in meta_spec)
@@ -1989,25 +1991,25 @@ apply (drule_tac x=x in spec)
 apply clarsimp
 apply (erule disjE,simp)
 
-lemma Mark_filter_induct_double_union[rule_format]: "   
-   \<forall>  l'. ( Mark_filter l \<sigma> L \<subseteq> Mark_filter l' \<sigma> L \<union> Mark_filter l \<sigma> (L\<union>Mark_filter l' \<sigma> L))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall>  l'. ( Mark_filter l \<sigma> L \<subseteq> Mark_filter l' \<sigma> L \<union> Mark_filter l \<sigma> (L\<union>Mark_filter l' \<sigma> L))" in Mark_filter.induct)
+lemma Serialization_filter_effdouble_union[rule_format]: "   
+   \<forall>  l'. ( Serialization_filter_eff l \<sigma> L \<subseteq> Serialization_filter_eff l' \<sigma> L \<union> Serialization_filter_eff l \<sigma> (L\<union>Serialization_filter_eff l' \<sigma> L))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall>  l'. ( Serialization_filter_eff l \<sigma> L \<subseteq> Serialization_filter_eff l' \<sigma> L \<union> Serialization_filter_eff l \<sigma> (L\<union>Serialization_filter_eff l' \<sigma> L))" in Serialization_filter_eff.induct)
 apply clarsimp
 apply (erule contrapos_np)
-apply (frule Mark_filterD_L)
-apply (frule Mark_filterD_,simp)
+apply (frule Serialization_filter_effD_L)
+apply (frule Serialization_filter_effD_,simp)
 apply (elim disjE)
 apply clarsimp
-apply(thin_tac "       (\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> \<forall>l'. Mark_filter nat \<sigma> (insert l L) \<subseteq> Mark_filter l' \<sigma> (insert l L) \<union> Mark_filter nat \<sigma> (insert l (L \<union> Mark_filter l' \<sigma> (insert l L)))) ")
+apply(thin_tac "       (\<And>x2 Value nat. False \<Longrightarrow> x2 = StoredVal (ObjRef nat) \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> \<forall>l'. Serialization_filter_eff nat \<sigma> (insert l L) \<subseteq> Serialization_filter_eff l' \<sigma> (insert l L) \<union> Serialization_filter_eff nat \<sigma> (insert l (L \<union> Serialization_filter_eff l' \<sigma> (insert l L)))) ")
 apply (drule_tac x= "Obj(fields,C)" in meta_spec)
 apply (drule_tac x= "fields" in meta_spec)
 apply (drule_tac x= C in meta_spec)
 apply clarsimp
-apply (rule Mark_filterI_)
+apply (rule Serialization_filter_effI_)
 apply clarsimp
 
 
-apply (subgoal_tac "\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "\<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Serialization_filter_eff l \<sigma> (L \<union> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply (erule Set.subset_trans,simp)
 apply blast
 (*1*)
@@ -2029,18 +2031,18 @@ apply (drule_tac x= S in spec)
 apply (drule_tac x= I in spec)
 
 
-lemma Mark_filter_induct_double[rule_format]: "   
-   \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Mark_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Mark_filter l \<sigma> (L\<union>S'))))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Mark_filter l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Mark_filter l \<sigma> (L\<union>S'))))" in  Mark_filter.induct)
+lemma Serialization_filter_effdouble[rule_format]: "   
+   \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Serialization_filter_eff l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Serialization_filter_eff l \<sigma> (L\<union>S'))))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L' S S' I ll LL. ((S\<subseteq>S'\<and>S'=\<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) | i . i\<in> I})\<longrightarrow>(S\<union>(Serialization_filter_eff l \<sigma> (L\<union>L'\<union>S))\<subseteq> S'\<union>(Serialization_filter_eff l \<sigma> (L\<union>S'))))" in  Serialization_filter_eff.induct)
 apply clarsimp
 apply rule
-apply (subgoal_tac "\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "\<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I}\<subseteq> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I} \<union> Serialization_filter_eff l \<sigma> (L \<union> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply (erule Set.subset_trans,simp)
 apply blast
 (*1*)
 apply rule
-apply (frule Mark_filterD_L)
-apply (frule Mark_filterD_,simp)
+apply (frule Serialization_filter_effD_L)
+apply (frule Serialization_filter_effD_,simp)
 apply (elim disjE)
 defer
 apply simp
@@ -2060,63 +2062,63 @@ apply (drule_tac x= I in spec)
 apply (drule_tac x= ll in spec)
 apply (drule_tac x= LL in spec)
 apply simp
-apply (subgoal_tac "x\<in>\<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}\<or>x\<in>Mark_filter l' \<sigma> (insert l (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}))")
-apply(case_tac "x \<in> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I}")
+apply (subgoal_tac "x\<in>\<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I}\<or>x\<in>Serialization_filter_eff l' \<sigma> (insert l (L \<union> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I}))")
+apply(case_tac "x \<in> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I}")
 apply (blast)
 apply clarsimp
-apply (subgoal_tac "x \<in> Mark_filter l \<sigma> (L \<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) |i. i \<in> I})")
+apply (subgoal_tac "x \<in> Serialization_filter_eff l \<sigma> (L \<union> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) |i. i \<in> I})")
 apply simp
-apply (rule Mark_filterI_)
+apply (rule Serialization_filter_effI_)
 apply clarsimp
-apply(subgoal_tac "Mark_filter l \<sigma> (L \<union> L' \<union> S) ={}")
+apply(subgoal_tac "Serialization_filter_eff l \<sigma> (L \<union> L' \<union> S) ={}")
 apply blast
 apply(subgoal_tac "l\<in>(L \<union> L' \<union> S)")
-apply(thin_tac "x \<in> Mark_filter l \<sigma> (L \<union> L' \<union> S)")
+apply(thin_tac "x \<in> Serialization_filter_eff l \<sigma> (L \<union> L' \<union> S)")
 apply clarsimp
 apply(subgoal_tac "l\<in>S")
 apply blast
 apply (drule_tac c=l in Set.subsetD,simp)
-apply (rule Mark_filterI_) 
- apply (simp (no_asm) add: Mark_filter.simps)
+apply (rule Serialization_filter_effI_) 
+ apply (simp (no_asm) add: Serialization_filter_eff.simps)
 (*1*)
 apply (case_tac a, case_tac prod)
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply (rule)
 apply (drule Set.Un_mono ,blast,simp)
 apply (thin_tac "(\<And>x2 Value nat. ?P x2 Value nat\<Longrightarrow>?Q x2 Value nat \<Longrightarrow>?R x2 Value nat\<Longrightarrow>?U x2 Value nat\<Longrightarrow>?T x2 Value nat)")
 apply (drule_tac x="Obj (aaa, ba)" in meta_spec)
 apply (drule_tac x=aaa in meta_spec)
 apply (drule_tac x=ba in meta_spec)
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply (clarsimp)
 apply (case_tac "l\<in>L",simp)
 apply (case_tac "l\<in>L'",simp)
 apply (case_tac "l\<in>S",simp)
-apply (clarsimp simp del: Mark_filter.simps split: split_if_asm)
+apply (clarsimp simp del: Serialization_filter_eff.simps split: split_if_asm)
 apply simp
  apply (subgoal_tac "distinct (sorted_list_of_set
                                               (\<Union>x\<in>ran aaa. Referenced_locations_Value x))")
-  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L="L\<union>L'\<union>S" in SF_fold_to_Union,simp)
+  apply (drule_tac SF=Serialization_filter_eff and \<sigma> = \<sigma> and LS ="{l}" and l=l and L="L\<union>L'\<union>S" in SF_fold_to_Union,simp)
 apply (clarsimp)
 apply (case_tac "x=l",simp)
-apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow>  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
-                                                                           | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
+apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {} | Some (Obj obj) \<Rightarrow>  fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
+                                                                           | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i}))" in exI)
 apply simp
 apply (rule_tac x=i in exI)
 apply simp
-apply (clarsimp simp del: Mark_filter.simps )
-apply (subgoal_tac "l'\<in>LL i \<or>l'\<in>Mark_filter (ll i) \<sigma> (LL i)") (* IF WELL FORMEDNESS IS PROVEN*)
+apply (clarsimp simp del: Serialization_filter_eff.simps )
+apply (subgoal_tac "l'\<in>LL i \<or>l'\<in>Serialization_filter_eff (ll i) \<sigma> (LL i)") (* IF WELL FORMEDNESS IS PROVEN*)
 apply (elim disjE)
-apply (subgoal_tac "l'\<in>Mark_filter l \<sigma> (L\<union> \<Union>{Mark_filter (ll i) \<sigma> (LL i) | i . i\<in> I})")
+apply (subgoal_tac "l'\<in>Serialization_filter_eff l \<sigma> (L\<union> \<Union>{Serialization_filter_eff (ll i) \<sigma> (LL i) | i . i\<in> I})")
 apply (clarsimp  split: split_if_asm)
 apply (drule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {}        
-| Some (Obj obj) \<Rightarrow>fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}                                                
-| Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in spec)
+| Some (Obj obj) \<Rightarrow>fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}                                                
+| Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i}))" in spec)
 apply simp
 apply (drule_tac x= i in spec)
 apply simp
 apply (simp (no_asm))
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply simp
 apply (drule_tac x= i in spec)
 apply simp
@@ -2130,9 +2132,9 @@ apply clarsimp
 
 apply (rule_tac x="(case \<sigma> (ll i) of None \<Rightarrow> {}
                                                                                                                  | Some (Obj obj) \<Rightarrow>
-  fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
-                                                                                                                 | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Mark_filter l' \<sigma> (LL i \<union> {ll i}))" in exI)
-apply (clarsimp simp del: Mark_filter.simps )
+  fold (\<lambda>l' S. S \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i} \<union> S)) (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {ll i}
+                                                                                                                 | Some (StoredVal null) \<Rightarrow> {ll i} | Some (StoredVal (ObjRef l')) \<Rightarrow> {ll i} \<union> Serialization_filter_eff l' \<sigma> (LL i \<union> {ll i}))" in exI)
+apply (clarsimp simp del: Serialization_filter_eff.simps )
 apply (rule_tac x=i in exI)
 apply simp
 
@@ -2140,7 +2142,7 @@ apply clarsimp
 apply (drule_tac x="{}" in meta_pec) (*? ? ?*)
 apply (case_tac "l\<in>L")
 apply simp
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
  apply (clarsimp split: option.splits Storable.splits)
 apply (clarsimp split: Value.splits)
 apply bast
@@ -2150,33 +2152,33 @@ sorry
 (*induction useful\<Or>? (\<And>l \<sigma> L a b S L'.
         l \<notin> L \<Longrightarrow> l \<notin> L' \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
           (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). (\<forall> L'. 
-                          (Mark_filter x \<sigma> (L\<union>L'\<union>{l}\<union>(S x))) \<subseteq>(Mark_filter x \<sigma> (L\<union>{l}\<union>(S x))))) \<Longrightarrow>
-            ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L\<union>L' \<union> {l}\<union>S x))` 
-                                             \<Union>(Referenced_locations_Value`ran(a)))))\<subseteq> ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> ((L) \<union> {l}\<union>S x))` 
+                          (Serialization_filter_eff x \<sigma> (L\<union>L'\<union>{l}\<union>(S x))) \<subseteq>(Serialization_filter_eff x \<sigma> (L\<union>{l}\<union>(S x))))) \<Longrightarrow>
+            ({l}\<union>(\<Union> ((\<lambda> x. Serialization_filter_eff x \<sigma> (L\<union>L' \<union> {l}\<union>S x))` 
+                                             \<Union>(Referenced_locations_Value`ran(a)))))\<subseteq> ({l}\<union>(\<Union> ((\<lambda> x. Serialization_filter_eff x \<sigma> ((L) \<union> {l}\<union>S x))` 
                                              \<Union>(Referenced_locations_Value`ran(a))))) )  \<Longrightarrow>
 (\<And>l \<sigma> L l' L'.
         l \<notin> L\<Longrightarrow> l\<notin> L' \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
-           \<forall> L'. (Mark_filter l' \<sigma> (L\<union>L'\<union>{l}))\<subseteq> ( (Mark_filter l' \<sigma> (L\<union>{l})) )\<Longrightarrow>
-           (({l}\<union>(Mark_filter l' \<sigma> (L\<union>L'\<union>{l})))\<subseteq>  ({l}\<union>(Mark_filter l' \<sigma> ((L)\<union>{l}))) ))         \<Longrightarrow>   
+           \<forall> L'. (Serialization_filter_eff l' \<sigma> (L\<union>L'\<union>{l}))\<subseteq> ( (Serialization_filter_eff l' \<sigma> (L\<union>{l})) )\<Longrightarrow>
+           (({l}\<union>(Serialization_filter_eff l' \<sigma> (L\<union>L'\<union>{l})))\<subseteq>  ({l}\<union>(Serialization_filter_eff l' \<sigma> ((L)\<union>{l}))) ))         \<Longrightarrow>   
 *)
 lemma " S \<subseteq> S' \<Longrightarrow> \<sigma> l = Some (Obj (aaa, ba)) \<Longrightarrow>
                    (\<And>x xa. l \<notin> L \<Longrightarrow> x \<in> set (sorted_list_of_set (\<Union>x\<in>ran aaa. Referenced_locations_Value x)) \<Longrightarrow>
-                                      \<forall>L' S S'. S \<subseteq> S' \<longrightarrow> S \<subseteq> S' \<union> Mark_filter x \<sigma> (insert l (L \<union> xa \<union> S')) \<and>
-                                                            Mark_filter x \<sigma> (insert l (L \<union> xa \<union> L' \<union> S)) \<subseteq> S' \<union> Mark_filter x \<sigma> (insert l (L \<union> xa \<union> S'))) \<Longrightarrow>
-                   x \<in> Mark_filter l \<sigma> (L \<union> L' \<union> S) \<Longrightarrow> x \<notin> Mark_filter l \<sigma> (L \<union> S') \<Longrightarrow> x \<in> S'"
+                                      \<forall>L' S S'. S \<subseteq> S' \<longrightarrow> S \<subseteq> S' \<union> Serialization_filter_eff x \<sigma> (insert l (L \<union> xa \<union> S')) \<and>
+                                                            Serialization_filter_eff x \<sigma> (insert l (L \<union> xa \<union> L' \<union> S)) \<subseteq> S' \<union> Serialization_filter_eff x \<sigma> (insert l (L \<union> xa \<union> S'))) \<Longrightarrow>
+                   x \<in> Serialization_filter_eff l \<sigma> (L \<union> L' \<union> S) \<Longrightarrow> x \<notin> Serialization_filter_eff l \<sigma> (L \<union> S') \<Longrightarrow> x \<in> S'"
 apply(induct_tac list)
 apply force
-apply (clarsimp simp del: Mark_filter.simps)
-apply (rotate_tac -1,frule_tac x="(La \<union> Mark_filter a \<sigma> (L  \<union> La))" in spec)
-apply (drule_tac x="(La \<union> Mark_filter a \<sigma> (L\<union>L'  \<union> La))" in spec)
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
+apply (rotate_tac -1,frule_tac x="(La \<union> Serialization_filter_eff a \<sigma> (L  \<union> La))" in spec)
+apply (drule_tac x="(La \<union> Serialization_filter_eff a \<sigma> (L\<union>L'  \<union> La))" in spec)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply auto
 apply (case_tac "\<sigma> l'")
 sorry
-lemma Mark_filter_induct_double[rule_format]: "   
-   \<forall> L'. (Mark_filter l \<sigma> (L\<union>L'))\<subseteq> (Mark_filter l \<sigma> (L))"
-apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L'. (Mark_filter l \<sigma> (L\<union>L'))\<subseteq> (Mark_filter l \<sigma> (L))" in  Mark_filter.induct)
-apply (clarsimp simp del: Mark_filter.simps)
+lemma Serialization_filter_effdouble[rule_format]: "   
+   \<forall> L'. (Serialization_filter_eff l \<sigma> (L\<union>L'))\<subseteq> (Serialization_filter_eff l \<sigma> (L))"
+apply (rule_tac P = " \<lambda> l \<sigma> L . \<forall> L'. (Serialization_filter_eff l \<sigma> (L\<union>L'))\<subseteq> (Serialization_filter_eff l \<sigma> (L))" in  Serialization_filter_eff.induct)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply (case_tac "\<sigma> l")
  apply (clarsimp split: split_if_asm)
 (*1*)
@@ -2205,22 +2207,22 @@ apply (insert l_in_fold_union_selection [of l F list "{}"])
 apply auto
 done
 
-lemma Serialization_2_excluded_set_subset: "\<forall> L . L\<subseteq>L' \<longrightarrow> Mark_filter l \<sigma> L' \<subseteq> Mark_filter l \<sigma> L"
-apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> Mark_filter l \<sigma> L)" in   Mark_filter_induct_1)
+lemma Serialization_2_excluded_set_subset: "\<forall> L . L\<subseteq>L' \<longrightarrow> Serialization_filter_eff l \<sigma> L' \<subseteq> Serialization_filter_eff l \<sigma> L"
+apply (rule_tac P= "\<lambda> S l \<sigma> L'. (\<forall>L. L\<subseteq>L' \<longrightarrow> S \<subseteq> Serialization_filter_eff l \<sigma> L)" in   Serialization_filter_eff1)
 apply clarsimp
 apply (clarsimp split: Value.splits)
 apply blast
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply rule
 apply (subgoal_tac "l\<notin>La")
 apply (clarsimp split: Value.splits Storable.splits)
 apply (rule l_in_fold_union_selection_empty)
 apply blast
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply (drule_tac x=xa in bspec,blast) 
 apply (drule_tac x=xb in bspec,blast) 
 apply (drule_tac x="insert l (La \<union> S xb)" in spec)
-apply (clarsimp simp del: Mark_filter.simps)
+apply (clarsimp simp del: Serialization_filter_eff.simps)
 apply (erule impE, blast)
 
 apply clarsimp
@@ -2230,7 +2232,7 @@ apply (clarsimp split: split_if )
 apply blast
 apply clarsimp
 apply (subgoal_tac "distinct (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran a)))")
-apply (drule_tac SF=Mark_filter  and \<sigma>=\<sigma> and l = l and L = "La" and LS="{l}" in SF_fold_to_Union_what_F)
+apply (drule_tac SF=Serialization_filter_eff  and \<sigma>=\<sigma> and l = l and L = "La" and LS="{l}" in SF_fold_to_Union_what_F)
 apply clarsimp
 apply (drule_tac x=xb in bspec,blast) 
 apply (rotate_tac -1,drule_tac x=xa in bspec,blast) 
@@ -2262,9 +2264,9 @@ done
 *)
 
 lemma equivalence_filters_1:
-"\<forall> L'. ((serialization_filter l \<sigma> L)  \<subseteq> (Mark_filter l \<sigma> L') \<union> L \<union> L')"
+"\<forall> L'. ((serialization_filter l \<sigma> L)  \<subseteq> (Serialization_filter_eff l \<sigma> L') \<union> L \<union> L')"
 apply (rule_tac P= 
-"\<lambda> S l'' \<sigma> L. \<forall> L'. (S  \<subseteq> (Mark_filter l'' \<sigma> L') \<union> L \<union> L')" in   serialization_filter_induct_1)
+"\<lambda> S l'' \<sigma> L. \<forall> L'. (S  \<subseteq> (Serialization_filter_eff l'' \<sigma> L') \<union> L \<union> L')" in   serialization_filter1)
 apply blast
 apply (clarsimp split: Value.splits)
 apply (clarsimp)
