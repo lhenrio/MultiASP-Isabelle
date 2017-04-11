@@ -8,7 +8,7 @@
                   this could be improved
 *)
 theory Serialization imports StoreDefinition Main AuxiliaryFunctions begin
-section{*generic lemmas*}
+section{*References, Well-formed store, finite objects*}
 (*lemma map_restrict_id: "\<sigma> x = None \<Longrightarrow>(\<sigma>|` L) x = None"
 apply (unfold restrict_map_def)
 apply auto
@@ -20,8 +20,6 @@ and
 finite_obj: "V=Obj(f,C) \<Longrightarrow>finite (dom f)"
 
 abbreviation isnotObjRef where "isnotObjRef V \<equiv>\<forall>l'. V\<noteq>ObjRef l'"
-
-
 
 lemma finite_ran_obj:
 "V=Obj(f,C) \<Longrightarrow>finite (ran f)"
@@ -41,9 +39,74 @@ Some (StoredVal (ObjRef l')) \<Rightarrow> {l'} |
 _\<Rightarrow>{}
 "
 
+lemma  finite_ran_obj_Referenced_locations_Value: "V=Obj(f,C) \<Longrightarrow>finite (\<Union>l'\<in>ran f. Referenced_locations_Value l')"
+apply (drule finite_ran_obj)
+apply (auto simp: Referenced_locations_Value_def split: Value.splits)
+done
+
 definition Well_Formed_Store where
 "Well_Formed_Store \<sigma> \<equiv> \<forall> l\<in> dom \<sigma>. Referenced_locations_Location \<sigma> l\<subseteq>dom \<sigma>"
 
+
+subsection{*generic lemmas on folding (for Mark serialization)*}
+
+lemma SF_fold_to_Union[rule_format]: "\<forall>LS . ((distinct fieldlist)\<longrightarrow>(\<exists> F .
+ (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) )) ) fieldlist (LS) 
+      = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) ) `(set fieldlist)))))"
+apply (induct_tac fieldlist)
+apply auto
+apply (drule_tac x= "(LS \<union> SF a \<sigma> (insert l (L \<union> LS)) )" in spec,clarsimp)
+apply (rule_tac x="F(a:= LS)" in exI)
+apply (auto split: split_if_asm)
+done
+ 
+lemma SF_fold_to_Union_what_F[rule_format]: "\<forall>LS . ((distinct fieldlist)\<longrightarrow>(\<exists> F .
+ (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS) 
+      = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)) \<and> 
+  (\<forall> n <length fieldlist. \<forall> l'\<in>F (fieldlist!n). l'\<in>LS \<or> (\<exists> n'<n . (l'\<in>SF (fieldlist!n') \<sigma> (L\<union>{l}\<union>F (fieldlist!n')) T)) ))))"
+apply (induct_tac fieldlist)
+ apply auto
+apply (drule_tac x= "(LS \<union> SF a \<sigma> (insert l (L \<union> LS)) T)" in spec,clarsimp)
+apply (rule_tac x="F(a:= LS)" in exI)
+apply (auto split: split_if_asm)
+apply (case_tac n)
+(*2*)
+ apply clarsimp+
+apply (drule_tac x=nat in spec,erule impE,blast)
+apply (drule_tac x=l' in bspec)
+ apply clarsimp
+apply auto
+apply (drule_tac x="Suc n'" in spec,clarsimp)
+done
+
+lemma Union_list_unfold_one: "(\<Union>n\<in>{n'. n' < Suc (length list)}. G ((a # list)!n)  n) = (G a 0) \<union>(\<Union> n\<in>{n'. n' <  (length list)}. (G  (list!n)  (Suc n))) "
+apply (subgoal_tac "{n'. n' < Suc (length list)} = insert 0 {Suc n'| n' . n' < (length list)}")
+apply  clarsimp
+apply force
+apply rule
+apply rule
+apply (case_tac x,simp,force)
+apply force
+done
+
+lemma Union_list_unfold_one_generalised[rule_format]: "N\<le>(length list)\<longrightarrow>(\<Union>n\<in>{n'. n' < Suc N}. G ((a # list)!n)  n) = (G a 0) \<union>(\<Union> n\<in>{n'. n' <  N}. (G  (list!n)  (Suc n))) "
+apply (subgoal_tac "{n'. n' < Suc N} = insert 0 {Suc n'| n' . n' < N}")
+ apply force
+apply auto
+apply (case_tac x,auto)
+done
+
+lemma SF_fold_to_Union_what_F2[rule_format]: "\<forall>LS . ((distinct locationlist)\<longrightarrow>(\<exists> F .
+ (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) locationlist (LS) 
+      = LS\<union> \<Union>((\<lambda> n . SF (locationlist!n) \<sigma> (L\<union>{l}\<union>F n) T) `{n'. n'<length locationlist}) \<and> 
+(F = (\<lambda>n. if n < length locationlist then 
+                  (fold (\<lambda>l' S.  (S\<union>(SF l' \<sigma> (L\<union>{l}\<union>S) T)) ) 
+                                        (take n locationlist) (LS)) else {})))))"
+apply (induct_tac locationlist)
+apply auto
+apply (case_tac xa)
+apply auto
+done
 
 subsection{*Properties on locations and stores*}
 
@@ -740,10 +803,6 @@ apply (subgoal_tac
 apply auto
 done
 
-(* INDUCTION PRINCIPLE on Filtering 
-1 - is with an additional variable for the induction set (often useful)
-2 - is the most natural one
-*)
 lemma serialization_filter_induct_1B: "   
 (\<And>l \<sigma> L. (\<sigma> l=None\<or>l\<in>L) \<longrightarrow> P {} l \<sigma> L) \<Longrightarrow> 
 (\<And>l \<sigma> L V. l\<notin>L \<Longrightarrow>  \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L) \<Longrightarrow> 
@@ -1067,8 +1126,10 @@ done
 
 
 
-theorem serialization_filter_verifies_serialize_weak_axiomatic_def: "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
-apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)" in serialization_filter_induct_1B)
+lemma serialization_filter_verifies_serialize_weak_axiomatic_def: 
+   "serialize_weak (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
+apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
+            in serialization_filter_induct_1B)
 (*4 None*)
    apply clarify
    apply (rule serialize_weak.intros(4))
@@ -1116,13 +1177,15 @@ apply (force simp: Map.restrict_map_def)
 done
 
 theorem serialization_filter_verifies_serialize_axiomatic_def: 
-"Well_Formed_Store \<sigma>\<Longrightarrow> l\<in>dom \<sigma> \<Longrightarrow>serialize (ObjRef l) \<sigma> (serialize_filter l \<sigma>)"
+"Well_Formed_Store \<sigma> \<Longrightarrow> l\<in>dom \<sigma> 
+    \<Longrightarrow> serialize (ObjRef l) \<sigma> (serialize_filter l \<sigma>)"
 apply (subgoal_tac "serialize_weak (ObjRef l) (\<sigma>|`(-{})) (\<sigma>|` (serialization_filter l \<sigma> {}))")
  apply (erule serialize_weak_serialize,simp,simp add: Map.restrict_map_def)
 apply (rule serialization_filter_verifies_serialize_weak_axiomatic_def)
 done
 
 section{*renaming*}
+
 primrec subst_Value :: " Value \<Rightarrow> (Location\<Rightarrow>Location) \<Rightarrow> Value"
 where
   "subst_Value (ObjRef l) \<psi> = ObjRef (\<psi>(l))" |
@@ -1229,7 +1292,7 @@ lemma check_subst_rev: "check_subst \<sigma> \<psi> \<sigma>' \<Longrightarrow> 
 apply (auto simp:  check_subst_def)
 done
 
-lemma " Well_Formed_Store \<sigma> \<Longrightarrow> check_subst \<sigma> \<psi> \<sigma>' \<Longrightarrow> Well_Formed_Store \<sigma>'"
+lemma subst_WF: " Well_Formed_Store \<sigma> \<Longrightarrow> check_subst \<sigma> \<psi> \<sigma>' \<Longrightarrow> Well_Formed_Store \<sigma>'"
 apply (auto simp:  Well_Formed_Store_def)
 apply (frule_tac check_subst_rev,force,clarsimp)
 apply (frule_tac l ="l'" in subst_referenced_locations)
@@ -1245,6 +1308,253 @@ apply blast
 done
 
 
+section{*Mark filtering*}
+
+
+function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
+(*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
+  where
+    "
+    (Mark_filter l \<sigma> L ) = (if l\<in>L then {} else
+      (case \<sigma>(l) of
+      None => {} |
+      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)   )) ) 
+                (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
+      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}) )|
+      _ \<Rightarrow> {l}))" 
+
+by auto
+termination
+apply (relation "measure (\<lambda>(l,\<sigma>,L). card (dom \<sigma> - L))") 
+  apply auto
+ apply (subgoal_tac  "card (dom \<sigma> -  insert l (L \<union> xa)) \<le>card (dom \<sigma> - insert l L)")
+  apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}") 
+   apply (subgoal_tac "finite ((dom \<sigma>-L))")
+(*5*)
+    apply (drule_tac x=l in Finite_Set.card.remove)+
+     apply (insert finite_map)
+     apply auto
+ apply (subgoal_tac "dom \<sigma> - insert l (L \<union> xa) \<subseteq>(dom \<sigma> - insert l L)")
+  apply (subgoal_tac "dom \<sigma> - insert l (L \<union> xa) =(dom \<sigma> - insert l L)\<or>dom \<sigma> -insert l (L \<union> xa) \<subset>(dom \<sigma> - insert l L)")
+   apply (elim disjE)
+    apply force
+(*4*)
+   apply (subgoal_tac "finite ((dom \<sigma>- insert l L))")
+    apply (drule_tac A="dom \<sigma>-insert l (L \<union> xa)" in Finite_Set.psubset_card_mono)
+     apply auto
+(*1*)
+apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}") 
+ apply (subgoal_tac "finite ((dom \<sigma>-L))")
+  apply (drule_tac x=l in Finite_Set.card.remove)+
+   apply (insert finite_map)
+   apply auto
+done
+
+abbreviation serialize_Mark:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
+where
+"serialize_Mark l \<sigma> \<equiv>  \<sigma> |` Mark_filter l \<sigma> {} " 
+
+lemma SFI2SG1: "
+       (\<And>l \<sigma> L a b S.
+           l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
+                     \<forall>x\<in>\<Union>(Referenced_locations_Value ` ran a). P (Mark_filter x \<sigma> (L \<union> {l} \<union> S x) ) x \<sigma> (L \<union> {l} \<union> S x)  \<Longrightarrow>
+                     P ({l} \<union> \<Union>((\<lambda>x. Mark_filter x \<sigma> (L \<union> {l} \<union> S x) ) ` \<Union>(Referenced_locations_Value ` ran a))) l \<sigma> L ) \<Longrightarrow>
+       (\<And>l \<sigma> L l' . l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> P (Mark_filter l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow> P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
+       (\<And>x2 prod x xa.
+           l \<notin> L \<Longrightarrow> \<sigma> l = Some x2 \<Longrightarrow>
+                     x2 = Obj prod \<Longrightarrow>
+                     x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
+                     P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) ) x \<sigma> (L \<union> {l} \<union> xa) ) \<Longrightarrow>
+       (\<And>l \<sigma> L  . P {} l \<sigma> L ) \<Longrightarrow> \<sigma> l = Some a \<Longrightarrow> a = Obj prod \<Longrightarrow> P (Mark_filter l \<sigma> L ) l \<sigma> L 
+"
+apply (case_tac prod,rename_tac f C)
+apply clarsimp
+apply (subgoal_tac 
+  "set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (f)))) = 
+    \<Union>(Referenced_locations_Value ` ran (f))")
+ apply clarsimp
+(*2*)
+ apply (drule_tac x=l in meta_spec)
+ apply (drule_tac x=\<sigma> in meta_spec)
+ apply (drule_tac x=L in meta_spec)
+ apply (drule_tac x=f in meta_spec)
+ apply (rotate_tac -1, drule_tac x=C in meta_spec)
+ apply simp
+ apply (drule_tac x=l in meta_spec)
+ apply (drule_tac x=\<sigma> in meta_spec)
+ apply (drule_tac x=L in meta_spec)
+ apply (drule_tac x="Obj(f,C)" in meta_spec)
+ apply (drule_tac x=f in meta_spec)
+ apply (drule_tac x=C in meta_spec)
+ apply simp
+(*2*)
+ apply (subgoal_tac "distinct (sorted_list_of_set
+                                              (\<Union>(Referenced_locations_Value ` (ran (f)))))")
+  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L  in SF_fold_to_Union,simp)
+(*SF_fold_to_Union[rule_format]: "((distinct fieldlist)\<longrightarrow>(\<exists> F . (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS)  = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)))))"*)
+  apply clarsimp
+(*3*)
+  apply (drule_tac x=F in meta_spec)
+   apply (erule meta_impE)
+   apply clarsimp
+   apply (rotate_tac 7,drule_tac x=x in meta_spec, drule_tac x="F x" in meta_spec)
+   apply (clarsimp)
+   apply (rotate_tac -1,erule meta_impE)
+    apply force
+(*4*)
+   apply (case_tac "\<sigma> x",force)
+   apply (case_tac "aaa",force,simp)
+   apply (force split: Value.splits)
+(*2*)
+ apply (rule distinct_sorted_list_of_set)
+ apply (subgoal_tac "finite (\<Union>l'\<in>ran (f). Referenced_locations_Value l')")
+ apply force
+apply (rule finite_ran_obj_Referenced_locations_Value)
+apply force
+done
+
+lemma  SFI2SG2:"(\<And>x2 Value nat.
+           l \<notin> L \<Longrightarrow>
+           \<sigma> l = Some x2 \<Longrightarrow>
+           x2 = StoredVal Value \<Longrightarrow> Value = ObjRef nat \<Longrightarrow> 
+           P (Mark_filter nat \<sigma> (L \<union> {l}) ) nat \<sigma> (L \<union> {l}) ) \<Longrightarrow>
+     (\<And>l'. l \<notin> L \<Longrightarrow>
+              \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow>
+              P (Mark_filter l' \<sigma> (L \<union> {l}) ) l' \<sigma> (L \<union> {l})  \<Longrightarrow>
+              P ({l} \<union> Mark_filter l' \<sigma> (L \<union> {l}) ) l \<sigma> L ) \<Longrightarrow>
+  \<sigma> l = Some a \<Longrightarrow>  P {} l \<sigma> L \<Longrightarrow>a = StoredVal (ObjRef l') \<Longrightarrow> P (Mark_filter l \<sigma> L ) l \<sigma> L 
+  "
+apply clarsimp
+done
+
+lemma Mark_filter_induct_1: "   
+(\<And>l \<sigma> L . P {} l \<sigma> L ) \<Longrightarrow> 
+(\<And>l \<sigma> L V .  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L ) \<Longrightarrow> 
+(\<And>l \<sigma> L a b S .
+        l \<notin> L \<Longrightarrow> \<sigma> l = Some (Obj (a,b)) \<Longrightarrow> 
+           (\<forall> x\<in>\<Union>(Referenced_locations_Value`(ran a)). 
+                          P (Mark_filter x \<sigma> (L\<union>{l}\<union>(S x)) ) x \<sigma> (L\<union>{l}\<union>(S x)) 
+                                     ) \<Longrightarrow>
+            P ({l}\<union>(\<Union> ((\<lambda> x. Mark_filter x \<sigma> (L \<union> {l}\<union>S x))` 
+                                             \<Union>(Referenced_locations_Value`ran(a))))) l \<sigma> L )  \<Longrightarrow>
+(\<And>l \<sigma> L l' .
+        l \<notin> L \<Longrightarrow> \<sigma> l = Some (StoredVal (ObjRef l')) \<Longrightarrow> 
+           (P (Mark_filter l' \<sigma> (L\<union>{l}) ) l' \<sigma>  (L\<union>{l}) )\<Longrightarrow>
+           (P ({l}\<union>(Mark_filter l' \<sigma> (L\<union>{l}) )) l \<sigma> L ))         \<Longrightarrow>   
+   P (Mark_filter l' \<sigma>' L' ) l' \<sigma>' L' "
+apply (rule Mark_filter.induct)
+apply (case_tac "\<sigma> l")
+ apply (simp)
+(*1*)
+apply (case_tac a)
+ apply (erule SFI2SG1,simp,simp,simp,simp,simp)
+apply (rename_tac val,case_tac val)
+ apply force
+apply (erule SFI2SG2,simp+)
+done
+
+
+
+lemma Mark_filterD_L:"x\<in>Mark_filter l \<sigma> L \<Longrightarrow> l\<notin>L"
+apply force
+done
+
+lemma Mark_filterD_L_contrapos:"l\<notin>Mark_filter l \<sigma> L  \<Longrightarrow> l\<in>L \<or> \<sigma> l = None"
+apply (simp split: option.splits Storable.splits split_if_asm )
+apply (clarsimp,rename_tac f C)
+apply (subgoal_tac "l\<in>{l}",drule_tac F="\<lambda> l' S . (if l' = l \<or> l' \<in> L \<or> l' \<in> S then {}
+                                  else case \<sigma> l' of None \<Rightarrow> {}
+                                                 | Some (Obj obj) \<Rightarrow>
+                                                     fold (\<lambda>l'a Sa. Sa \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'} \<union> Sa))
+                                                      (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst obj)))) {l'}
+                                                 | Some (StoredVal null) \<Rightarrow> {l'} | Some (StoredVal (ObjRef l'a)) \<Rightarrow> {l'} \<union> Mark_filter l'a \<sigma> (insert l (L \<union> S) \<union> {l'}) )" in AuxiliaryFunctions.foldr_Un_init
+       ,blast)
+apply blast
+apply (simp split: Value.splits Storable.splits split_if_asm )
+done
+
+lemma Mark_filter_no_l[simp]:"l\<notin>Mark_filter l \<sigma> L = (l\<in>L \<or> \<sigma> l = None)"
+apply rule
+apply (rule Mark_filterD_L_contrapos,simp)
+apply auto
+done
+
+lemma Mark_filterD: "x\<in>Mark_filter l \<sigma> L \<Longrightarrow> 
+                                   ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S)))) 
+                                        (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
+                                   (x=l \<and>\<sigma> l \<noteq>None) \<or>
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )))"
+apply (case_tac "\<sigma> l")
+apply (simp split: option.splits Storable.splits split_if_asm )
+apply (case_tac "x=l",force)
+apply (case_tac a)
+apply (force split: option.splits Storable.splits split_if_asm Value.splits)
+apply (force split: Value.splits split_if_asm)
+done
+
+lemma Mark_filterI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
+                                        (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
+                                   (x=l \<and>\<sigma> l \<noteq>None) \<or>
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )) ) 
+                                   \<Longrightarrow> x\<in>Mark_filter l \<sigma> L "
+apply (elim disjE)
+apply (clarsimp split: Storable.splits split_if_asm)
+apply (clarsimp split: Storable.splits split_if_asm )
+(*3*)
+apply (case_tac y,rename_tac obj',case_tac obj')
+apply (subgoal_tac "l\<in>{l}",drule AuxiliaryFunctions.foldr_Un_init,simp,blast)
+apply (simp split: Value.splits)
+apply force
+done
+
+lemma Mark_filter_def2: 
+"x\<in>Mark_filter l \<sigma> L  = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
+                                        (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
+                                   (x=l \<and>\<sigma> l \<noteq>None) \<or>
+                                   (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) )) )) 
+                       "
+apply rule 
+apply (frule Mark_filterD, drule Mark_filterD_L,blast)
+apply (rule Mark_filterI,blast,blast)
+done
+
+declare Mark_filter.simps[simp del]
+
+lemma Mark_filter_empty[simp]: "(Mark_filter l \<sigma> L  ={}) = (l\<in>L\<or> \<sigma> l = None)"
+apply rule
+apply (case_tac "l\<in>(Mark_filter l \<sigma> L )")
+apply force
+apply (drule Mark_filterD_L_contrapos)
+apply simp
+apply (clarsimp simp: Mark_filter.simps)
+done
+
+lemma serialize_value_Mark: "(serialize_Mark l \<sigma>) l' = Some x \<Longrightarrow> \<sigma> l' = Some x"
+apply (subgoal_tac "l'\<in>(Mark_filter l \<sigma> {} )")
+ apply (drule_tac m=\<sigma> in Map.restrict_in)
+ apply force
+apply (rule Map_restrict_Some,blast)
+done
+
+lemma Mark_filter_serialization_filter:
+" Mark_filter l \<sigma> L = serialization_filter l \<sigma> L"
+apply (rule_tac P= "\<lambda> S l \<sigma> L. Mark_filter l \<sigma> L = serialization_filter l \<sigma> L" in   serialization_filter_induct_1B)
+apply auto
+apply (rule_tac P="\<lambda> S l \<sigma> L. serialize_weak  (ObjRef l) (\<sigma>|` (-L)) (\<sigma> |` serialization_filter l \<sigma> L)"
+            in serialization_filter_induct_1B)apply clarsimp
+apply rule
+apply clarsimp
+apply (auto elim: Mark_filterD)
+apply (drule Mark_filterD)
+apply auto
+apply (rule Mark_filterI)
+apply auto
+
+section
+(* mark filtering with additional param useful?
 section{*Mark filtering*}
 
 
@@ -1287,113 +1597,9 @@ apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}")
    apply auto
 done
 
-
-(*function (sequential) Mark_filter :: "Location \<Rightarrow> Store \<Rightarrow> Location set \<Rightarrow> Location set"
-(*serialize v \<sigma> \<sigma>' is true if the serialization of value v is a subset of \<sigma>' (using store \<sigma>)*)
-  where
-    "
-    (Mark_filter l \<sigma> L) = (if l\<in>L then {} else
-      (case \<sigma>(l) of
-      None => {} |
-      Some (Obj obj) \<Rightarrow> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S))) ) 
-                (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fst(obj))))) ({l}))  |
-      Some (StoredVal (ObjRef l')) \<Rightarrow>{l}\<union> (Mark_filter l' \<sigma> (L\<union>{l}))|
-      _ \<Rightarrow> {l}))" 
-by auto
-termination
-apply (relation "measure (\<lambda>(l,\<sigma>,L). card (dom \<sigma> - L))") 
-  apply auto
- apply (subgoal_tac  "card (dom \<sigma> -  insert l (L \<union> xa)) \<le>card (dom \<sigma> - insert l L)")
-  apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}") 
-   apply (subgoal_tac "finite ((dom \<sigma>-L))")
-(*5*)
-    apply (drule_tac x=l in Finite_Set.card.remove)+
-     apply (insert finite_map)
-     apply auto
- apply (subgoal_tac "dom \<sigma> - insert l (L \<union> xa) \<subseteq>(dom \<sigma> - insert l L)")
-  apply (subgoal_tac "dom \<sigma> - insert l (L \<union> xa) =(dom \<sigma> - insert l L)\<or>dom \<sigma> -insert l (L \<union> xa) \<subset>(dom \<sigma> - insert l L)")
-   apply (elim disjE)
-    apply force
-(*4*)
-   apply (subgoal_tac "finite ((dom \<sigma>- insert l L))")
-    apply (drule_tac A="dom \<sigma>-insert l (L \<union> xa)" in Finite_Set.psubset_card_mono)
-     apply auto
-(*1*)
-apply (subgoal_tac "dom \<sigma> - insert l L = (dom \<sigma> - L) - {l}") 
- apply (subgoal_tac "finite ((dom \<sigma>-L))")
-  apply (drule_tac x=l in Finite_Set.card.remove)+
-   apply (insert finite_map)
-   apply auto
-done
-*)
-lemma  finite_ran_obj_Referenced_locations_Value: "V=Obj(f,C) \<Longrightarrow>finite (\<Union>l'\<in>ran f. Referenced_locations_Value l')"
-apply (drule finite_ran_obj)
-apply (auto simp: Referenced_locations_Value_def split: Value.splits)
-done
-
 abbreviation serialize_Mark:: "Location \<Rightarrow> Store \<Rightarrow> Store" 
 where
 "serialize_Mark l \<sigma> \<equiv>  \<sigma> |` Mark_filter l \<sigma> {} {}" 
-
-lemma SF_fold_to_Union[rule_format]: "\<forall>LS . ((distinct fieldlist)\<longrightarrow>(\<exists> F .
- (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS) 
-      = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)))))"
-apply (induct_tac fieldlist)
-apply auto
-apply (drule_tac x= "(LS \<union> SF a \<sigma> (insert l (L \<union> LS)) T)" in spec,clarsimp)
-apply (rule_tac x="F(a:= LS)" in exI)
-apply (auto split: split_if_asm)
-done
- 
-lemma SF_fold_to_Union_what_F[rule_format]: "\<forall>LS . ((distinct fieldlist)\<longrightarrow>(\<exists> F .
- (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) fieldlist (LS) 
-      = LS\<union> \<Union>((\<lambda> x . SF x \<sigma> (L\<union>{l}\<union>F x) T) `(set fieldlist)) \<and> 
-  (\<forall> n <length fieldlist. \<forall> l'\<in>F (fieldlist!n). l'\<in>LS \<or> (\<exists> n'<n . (l'\<in>SF (fieldlist!n') \<sigma> (L\<union>{l}\<union>F (fieldlist!n')) T)) ))))"
-apply (induct_tac fieldlist)
-apply auto
-apply (drule_tac x= "(LS \<union> SF a \<sigma> (insert l (L \<union> LS)) T)" in spec,clarsimp)
-apply (rule_tac x="F(a:= LS)" in exI)
-apply (auto split: split_if_asm)
-apply (case_tac n)
-apply clarsimp
-apply simp
-apply (drule_tac x=nat in spec,erule impE,blast)
-apply (drule_tac x=l' in bspec)
-apply clarsimp
-apply auto
-apply (drule_tac x="Suc n'" in spec,clarsimp)
-done
-
-lemma Union_list_unfold_one: "(\<Union>n\<in>{n'. n' < Suc (length list)}. G ((a # list)!n)  n) = (G a 0) \<union>(\<Union> n\<in>{n'. n' <  (length list)}. (G  (list!n)  (Suc n))) "
-apply (subgoal_tac "{n'. n' < Suc (length list)} = insert 0 {Suc n'| n' . n' < (length list)}")
-apply  clarsimp
-apply force
-apply rule
-apply rule
-apply (case_tac x,simp,force)
-apply force
-done
-lemma Union_list_unfold_one_generalised[rule_format]: "N\<le>(length list)\<longrightarrow>(\<Union>n\<in>{n'. n' < Suc N}. G ((a # list)!n)  n) = (G a 0) \<union>(\<Union> n\<in>{n'. n' <  N}. (G  (list!n)  (Suc n))) "
-apply (subgoal_tac "{n'. n' < Suc N} = insert 0 {Suc n'| n' . n' < N}")
-apply  clarsimp
-apply force
-apply rule
-apply rule
-apply (case_tac x,simp,force)
-apply force
-done
-
-lemma SF_fold_to_Union_what_F2[rule_format]: "\<forall>LS . ((distinct locationlist)\<longrightarrow>(\<exists> F .
- (fold (\<lambda>x S.  (S\<union>(SF x \<sigma> (L\<union>{l}\<union>S) T)) ) locationlist (LS) 
-      = LS\<union> \<Union>((\<lambda> n . SF (locationlist!n) \<sigma> (L\<union>{l}\<union>F n) T) `{n'. n'<length locationlist}) \<and> 
-(F = (\<lambda>n. if n < length locationlist then 
-                  (fold (\<lambda>l' S.  (S\<union>(SF l' \<sigma> (L\<union>{l}\<union>S) T)) ) 
-                                        (take n locationlist) (LS)) else {})))))"
-apply (induct_tac locationlist)
-apply auto
-apply (case_tac xa)
-apply auto
-done
 
 lemma SFI2SG1: "
        (\<And>l \<sigma> L a b S T.
@@ -1536,7 +1742,7 @@ apply (force split: option.splits Storable.splits split_if_asm Value.splits)
 apply (force split: Value.splits split_if_asm)
 done
 
-lemma Mark_filterI_: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+lemma Mark_filterI: "l\<notin>L\<Longrightarrow> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
                                         x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
@@ -1552,15 +1758,16 @@ apply (simp split: Value.splits)
 apply force
 done
 
-lemma Mark_filter_def2: "x\<in>Mark_filter l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
-                                        x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
+lemma Mark_filter_def2: 
+"x\<in>Mark_filter l \<sigma> L T = (l\<notin>L \<and> ((\<exists> fields C . (\<sigma> l = Some (Obj (fields,C))\<and> 
+                                  x \<in> (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(fields))))) ) 
                                         (sorted_list_of_set (\<Union>(Referenced_locations_Value`ran(fields)))) ({l})))) \<or>  
                                    (x=l \<and>\<sigma> l \<noteq>None) \<or>
                                    (\<exists> l' . (\<sigma> l = Some (StoredVal (ObjRef l'))\<and> x\<in>Mark_filter l' \<sigma> (L\<union>{l}) T)) )) 
                        "
 apply rule 
 apply (frule Mark_filterD_, drule Mark_filterD_L,blast)
-apply (rule Mark_filterI_,blast,blast)
+apply (rule Mark_filterI,blast,blast)
 done
 
 declare Mark_filter.simps[simp del]
@@ -1580,158 +1787,12 @@ apply (subgoal_tac "l'\<in>(Mark_filter l \<sigma> {} {})")
  apply force
 apply (rule Map_restrict_Some,blast)
 done
-(*
-lemma SFI3SG1: "
-       (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow>
-       (\<And>l \<sigma> L a b  T .
-           l \<notin> L \<Longrightarrow>
-           \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-           \<Union>(Referenced_locations_Value ` ran a) = {} \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow>
-       (\<And>l \<sigma> L a b S T locationlist.
-           l \<notin> L \<Longrightarrow>
-           \<sigma> l = Some (Obj (a, b)) \<Longrightarrow>
-           locationlist = sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
-           locationlist \<noteq> [] \<Longrightarrow>
-           S = (\<lambda>n. if n < length locationlist then 
-                  (fold (\<lambda>l' S.  (S\<union>(Mark_filter l' \<sigma> (L\<union>{l}\<union>S) (T\<union>\<Union>(Referenced_locations_Value`ran(a))))) ) 
-                                        (take n locationlist) ({l})) else {}) \<Longrightarrow>
-           \<forall>i<length locationlist.
-              P (Mark_filter (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) (locationlist!i) \<sigma> (L \<union> {l} \<union> S i) (T \<union> \<Union>(Referenced_locations_Value ` ran a)) \<Longrightarrow>
-           P ({l} \<union> \<Union>((\<lambda>x. Mark_filter (locationlist!x) \<sigma> (L \<union> {l} \<union> S x) (T \<union> \<Union>(Referenced_locations_Value ` ran a))) ` {0..length(locationlist) - 1})) l \<sigma> L T) \<Longrightarrow>
-       (\<And>x2 prod x xa.
-           l \<notin> L \<Longrightarrow>
-           \<sigma> l = Some x2 \<Longrightarrow>
-           x2 = Obj prod \<Longrightarrow>
-           x \<in> set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-           P (Mark_filter x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) x \<sigma> (L \<union> {l} \<union> xa) (T \<union> \<Union>(Referenced_locations_Value ` ran (fst prod)))) \<Longrightarrow>
-       \<sigma> l = Some (Obj (f,C)) \<Longrightarrow> P (Mark_filter l \<sigma> L T) l \<sigma> L T
-"
-apply clarsimp
-apply (subgoal_tac 
-  "set (sorted_list_of_set (\<Union>(Referenced_locations_Value ` ran (f)))) = 
-    \<Union>(Referenced_locations_Value ` ran (f))")
- apply clarsimp
 
-(*2*)
- apply (rotate_tac 2, drule_tac x=l in meta_spec)
- apply (drule_tac x=\<sigma> in meta_spec)
- apply (drule_tac x=L in meta_spec)
- apply (drule_tac x=f in meta_spec)
- apply (rotate_tac -1, drule_tac x=C in meta_spec)
- apply simp
- apply (drule_tac x=l in meta_spec)
- apply (drule_tac x=\<sigma> in meta_spec)
- apply (drule_tac x=L in meta_spec)
- apply (drule_tac x="Obj(f,C)" in meta_spec)
- apply (drule_tac x=f in meta_spec)
- apply (drule_tac x=C in meta_spec)
- apply (drule_tac x=l in meta_spec)
- apply (drule_tac x=\<sigma> in meta_spec)
- apply (drule_tac x=L in meta_spec)
- apply (drule_tac x="Obj(f,C)" in meta_spec)
- apply (drule_tac x=f in meta_spec)
- apply (drule_tac x=C in meta_spec)
- apply (simp(no_asm) add: Mark_filter.simps)
-apply clarsimp
-(*2*)
- apply (subgoal_tac "distinct (sorted_list_of_set
-                                              (\<Union>(Referenced_locations_Value ` (ran (f)))))")
-  apply (drule_tac SF=Mark_filter and \<sigma> = \<sigma> and LS ="{l}" and l=l and L=L and T="T\<union>(\<Union>x\<in>ran f. Referenced_locations_Value x)" in SF_fold_to_Union_what_F2,clarsimp)
-(*3*)
-  apply (drule_tac x=" (\<lambda>n. if n < length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))
-                 then fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f))) (take n (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))) {l} else {}) "in meta_spec)
-  apply (rotate_tac -1,drule_tac x="T" in meta_spec)
-  apply (rotate_tac -1,drule_tac x="sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)" in meta_spec)
-   apply (simp,rotate_tac -1,erule meta_impE)
-   apply clarsimp
-   apply (drule_tac x="sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)!i" in meta_spec)
-      apply (rotate_tac -1,drule_tac x="fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
-                                (take i (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))) {l}" in meta_spec)
-      apply (erule meta_impE)
-      apply force
-      apply force
+lemma Mark_filter_serialization_filter:
+"Mark_filter l \<sigma> L {}= serialization_filter l \<sigma> L"
+apply (rule serialization_filter_induct_1B)
+apply auto
 
-(*3*)
-   apply (subgoal_tac 
-"(\<Union>x\<in>{0..length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x)) - 1}.
-                    Mark_filter (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x) ! x) \<sigma>
-                     (insert l (L \<union> (if x < length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))
-                                      then fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (L \<union> {l} \<union> S) (T \<union> \<Union>(Referenced_locations_Value ` ran f)))
-                                            (take x (sorted_list_of_set (UNION (ran f) Referenced_locations_Value))) {l}
-                                      else {})))
-                     (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
-=(\<Union>l'\<in>{n'. n' < length (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))}.
-                    Mark_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! l') \<sigma>
-                     (insert l (L \<union> fold (\<lambda>l' S. S \<union> Mark_filter l' \<sigma> (insert l (L \<union> S)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
-                                      (take l' (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))) {l}))
-                     (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
-")
-   apply (rotate_tac -1,erule ssubst)
-   back back
-   apply (simp)
-   apply (rule UNION_eqI)
-   apply clarsimp
-   apply rule
-   apply (clarsimp)
-   apply (rule_tac x=x in exI)
-   apply clarsimp
-   apply clarsimp
-   apply (case_tac x)
-   apply clarsimp
-   apply blast
-   apply (simp add1: le_less)
-   apply (subgoal_tac x=length
-   
-   apply (rule UNION_UNION_eqI)
-   apply (rule UNION_UNION_eqI)
-
-  apply
-(*
-   apply force
-   apply
-(*   apply force
-   apply (subgoal_tac "(\<Union>x\<in>ran f. \<Union>x\<in>Referenced_locations_Value x. Mark_filter x \<sigma> (insert l (L \<union> F x)) (T \<union> (\<Union>x\<in>ran f. Referenced_locations_Value x)))
-= 
-(\<Union>m\<in>{n'. n' < length (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l'))}.
-                         Mark_filter (sorted_list_of_set (\<Union>l'\<in>ran f. Referenced_locations_Value l') ! m) \<sigma> (insert l (L \<union> F m)) (T \<union> (\<Union>l'\<in>ran f. Referenced_locations_Value l')))
-")
-   apply force
-   apply (rule UNION_UNION_eqI)
-   apply (clarsimp, rename_tac xf)
-   
- (*  apply (subgoal_tac "finite (\<Union>l'\<in>ran (f). Referenced_locations_Value l')")*)
-   apply (subgoal_tac "finite (\<Union>x\<in>ran f. Referenced_locations_Value x)")
-   apply (drule_tac x=xf in  sorted_list_of_set_nthI)
-   apply blast
-   apply clarsimp
-   apply (rule_tac x=n in exI)
-   apply (subgoal_tac "card (\<Union>x\<in>ran f. Referenced_locations_Value x)= length (sorted_list_of_set (\<Union>x\<in>ran f. Referenced_locations_Value x))")
-   apply simp
-   apply (rule sorted_list_of_set_card_length)
-   apply (clarsimp split: option.splits)
-   apply (case_tac x2,simp,simp)
-
-   apply (rule sorted_list_of_set_card_length)
-   apply clarsimp
-    apply force(*
-   apply (erule meta_impE)
-    apply clarsimp
-   apply (rotate_tac 7,drule_tac x=x in meta_spec, drule_tac x="F x" in meta_spec)
-   apply (clarsimp)
-(*4*)
-   apply (case_tac "\<sigma> x",force)
-   apply (case_tac "aaa",force,simp)
-   apply (force split: Value.splits)
-  apply force
-(*2*)
- apply (rule distinct_sorted_list_of_set)
- apply (subgoal_tac "finite (\<Union>l'\<in>ran (f). Referenced_locations_Value l')")
- apply force
-apply (rule finite_ran_obj_Referenced_locations_Value)
-apply force
-done
-*)
-*)*)*)
 lemma Mark_filter_induct_2: "   
 (\<And>l \<sigma> L T. P {} l \<sigma> L T) \<Longrightarrow> 
 (\<And>l \<sigma> L V T.  l\<notin>L \<Longrightarrow> \<sigma> l = Some (StoredVal V) \<Longrightarrow>isnotObjRef V \<Longrightarrow>P {l} l \<sigma> L T) \<Longrightarrow> 
